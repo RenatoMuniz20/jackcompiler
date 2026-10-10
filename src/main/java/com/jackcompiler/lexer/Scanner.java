@@ -44,7 +44,6 @@ public class Scanner {
         if (current >= input.length) {
             return '\0';
         }
-
         return (char) input[current];
     }
 
@@ -82,7 +81,6 @@ public class Scanner {
                 skipLineComment();
             } else if (ch == '/' && peekNext() == '*') {
                 skipBlockComment();
-            }
             } else {
                 break;
             }
@@ -97,22 +95,22 @@ public class Scanner {
 
     private void skipBlockComment() {
         int startLine = line;
-        advance(); // '/'
-        advance(); // '*'
+        advance(); // pula '/'
+        advance(); // pula '*'
 
         while (!(peek() == '*' && peekNext() == '/')) {
             if (peek() == '\0') {
                 throw new RuntimeException(
-                    "Erro léxico na linha " + startLine
-                            + ": comentário de bloco não foi fechado");
-        }
+                        "Erro léxico na linha " + startLine
+                                + ": comentário de bloco não foi fechado");
+            }
             if (peek() == '\n') {
-            line++;
+                line++;
             }
             advance();
         }
-        advance(); // '*'
-        advance(); // '/'
+        advance(); // pula '*'
+        advance(); // pula '/'
     }
 
     private Token number() {
@@ -123,13 +121,39 @@ public class Scanner {
         }
 
         String lexeme = new String(
-            input,
-            start,
-            current - start,
-            StandardCharsets.UTF_8
+                input,
+                start,
+                current - start,
+                StandardCharsets.UTF_8
         );
 
         return new Token(TokenType.NUMBER, lexeme, line);
+    }
+
+    private Token string() {
+        int startLine = line;
+        advance(); // pula a aspa de abertura '"'
+        int start = current;
+
+        while (peek() != '"' && peek() != '\0' && peek() != '\n') {
+            advance();
+        }
+
+        if (peek() != '"') {
+            throw new RuntimeException(
+                    "Erro léxico na linha " + startLine + ": string não fechada"
+            );
+        }
+
+        String lexeme = new String(
+                input,
+                start,
+                current - start,
+                StandardCharsets.UTF_8
+        );
+        advance(); // consome a aspa de fechamento '"'
+
+        return new Token(TokenType.STRING, lexeme, startLine);
     }
 
     private Token identifier() {
@@ -140,15 +164,15 @@ public class Scanner {
         }
 
         String lexeme = new String(
-            input,
-            start,
-            current - start,
-            StandardCharsets.UTF_8
+                input,
+                start,
+                current - start,
+                StandardCharsets.UTF_8
         );
 
         TokenType type = keywords.getOrDefault(
-            lexeme,
-            TokenType.IDENT
+                lexeme,
+                TokenType.IDENT
         );
 
         return new Token(type, lexeme, line);
@@ -179,14 +203,17 @@ public class Scanner {
         }
     }
 
-
-public Token nextToken() {
+    public Token nextToken() {
         skipWhitespaceAndComments();
 
         char ch = peek();
 
         if (ch == '\0') {
             return new Token(TokenType.EOF, "", line);
+        }
+
+        if (ch == '"') {
+            return string();
         }
 
         if (Character.isDigit(ch)) {
@@ -204,8 +231,8 @@ public Token nextToken() {
         }
 
         throw new RuntimeException(
-            "Erro léxico na linha " + line
-            + ": caractere inválido '" + ch + "'"
+                "Erro léxico na linha " + line
+                        + ": caractere inválido '" + ch + "'"
         );
     }
 }
