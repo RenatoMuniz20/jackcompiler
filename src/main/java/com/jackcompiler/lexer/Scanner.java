@@ -197,11 +197,11 @@ public Token nextToken() {
             return identifier();
         }
 
-    TokenType symbol = symbolType(ch);
-    if (symbol != null) {
-        advance();
-        return new Token(symbol, String.valueOf(ch), line);
-    }
+        TokenType symbol = symbolType(ch);
+        if (symbol != null) {
+            advance();
+            return new Token(symbol, String.valueOf(ch), line);
+        }
 
         throw new RuntimeException(
             "Erro léxico na linha " + line
