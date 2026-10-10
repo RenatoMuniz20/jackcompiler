@@ -1,0 +1,12 @@
+class Exemplo {
+
+    function void main() {
+        var int resultado;
+
+        let resultado = 8 / 2;
+
+        do Output.printString("A & B");
+
+        return;
+    }
+}
