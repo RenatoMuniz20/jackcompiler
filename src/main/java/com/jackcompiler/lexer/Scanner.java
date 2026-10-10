@@ -48,6 +48,13 @@ public class Scanner {
         return (char) input[current];
     }
 
+    private char peekNext() {
+        if (current + 1 >= input.length) {
+            return '\0';
+        }
+        return (char) input[current + 1];
+    }
+
     private void advance() {
         if (current < input.length) {
             current++;
@@ -62,7 +69,7 @@ public class Scanner {
         return isAlpha(ch) || Character.isDigit(ch);
     }
 
-    private void skipWhitespace() {
+    private void skipWhitespaceAndComments() {
         while (true) {
             char ch = peek();
 
@@ -71,10 +78,41 @@ public class Scanner {
             } else if (ch == '\n') {
                 line++;
                 advance();
+            } else if (ch == '/' && peekNext() == '/') {
+                skipLineComment();
+            } else if (ch == '/' && peekNext() == '*') {
+                skipBlockComment();
+            }
             } else {
                 break;
             }
         }
+    }
+
+    private void skipLineComment() {
+        while (peek() != '\n' && peek() != '\0') {
+            advance();
+        }
+    }
+
+    private void skipBlockComment() {
+        int startLine = line;
+        advance(); // '/'
+        advance(); // '*'
+
+        while (!(peek() == '*' && peekNext() == '/')) {
+            if (peek() == '\0') {
+                throw new RuntimeException(
+                    "Erro léxico na linha " + startLine
+                            + ": comentário de bloco não foi fechado");
+        }
+            if (peek() == '\n') {
+            line++;
+            }
+            advance();
+        }
+        advance(); // '*'
+        advance(); // '/'
     }
 
     private Token number() {
@@ -117,7 +155,7 @@ public class Scanner {
     }
 
     public Token nextToken() {
-        skipWhitespace();
+        skipWhitespaceAndComments();
 
         char ch = peek();
 
