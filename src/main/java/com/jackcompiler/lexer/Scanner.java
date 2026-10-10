@@ -154,7 +154,33 @@ public class Scanner {
         return new Token(type, lexeme, line);
     }
 
-    public Token nextToken() {
+    private TokenType symbolType(char ch) {
+        switch (ch) {
+            case '(': return TokenType.LPAREN;
+            case ')': return TokenType.RPAREN;
+            case '{': return TokenType.LBRACE;
+            case '}': return TokenType.RBRACE;
+            case '[': return TokenType.LBRACKET;
+            case ']': return TokenType.RBRACKET;
+            case ',': return TokenType.COMMA;
+            case ';': return TokenType.SEMICOLON;
+            case '.': return TokenType.DOT;
+            case '+': return TokenType.PLUS;
+            case '-': return TokenType.MINUS;
+            case '*': return TokenType.ASTERISK;
+            case '/': return TokenType.SLASH;
+            case '&': return TokenType.AND;
+            case '|': return TokenType.OR;
+            case '~': return TokenType.NOT;
+            case '<': return TokenType.LT;
+            case '>': return TokenType.GT;
+            case '=': return TokenType.EQ;
+            default:  return null;
+        }
+    }
+
+
+public Token nextToken() {
         skipWhitespaceAndComments();
 
         char ch = peek();
@@ -170,6 +196,12 @@ public class Scanner {
         if (isAlpha(ch)) {
             return identifier();
         }
+
+    TokenType symbol = symbolType(ch);
+    if (symbol != null) {
+        advance();
+        return new Token(symbol, String.valueOf(ch), line);
+    }
 
         throw new RuntimeException(
             "Erro léxico na linha " + line
