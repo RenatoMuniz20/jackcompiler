@@ -77,4 +77,14 @@ class ScannerCasosEspeciaisTest {
     void stringNaoPodeQuebrarLinha() {
         assertThrows(RuntimeException.class, () -> tokenizar("\"abc\ndef\""));
     }
+
+    @Test
+    void rejeitaStringComQuebraDeLinhaCR() {
+        assertThrows(
+            RuntimeException.class,
+            () -> tokenizar("\"Ola\rMundo\"")
+        );
 }
+
+}
+

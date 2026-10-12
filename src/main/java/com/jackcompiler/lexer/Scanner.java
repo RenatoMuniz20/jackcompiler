@@ -156,7 +156,8 @@ public class Scanner {
         advance(); // pula a aspa de abertura '"'
         int start = current;
 
-        while (peek() != '"' && peek() != '\0' && peek() != '\n') {
+        while (peek() != '"' && peek() != '\0'
+                && peek() != '\n' && peek() != '\r') {
             advance();
         }
 
