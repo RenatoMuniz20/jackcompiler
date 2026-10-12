@@ -9,6 +9,7 @@ public class Scanner {
     private final byte[] input;
     private int current = 0;
     private int line = 1;
+    private static final int MAIOR_INTEIRO_JACK = 32767;
 
     private static final Map<String, TokenType> keywords = new HashMap<>();
 
@@ -44,14 +45,14 @@ public class Scanner {
         if (current >= input.length) {
             return '\0';
         }
-        return (char) input[current];
+        return (char) (input[current] & 0xFF);
     }
 
     private char peekNext() {
         if (current + 1 >= input.length) {
             return '\0';
         }
-        return (char) input[current + 1];
+        return (char) (input[current + 1] & 0xFF);
     }
 
     private void advance() {
@@ -61,11 +62,17 @@ public class Scanner {
     }
 
     private boolean isAlpha(char ch) {
-        return Character.isLetter(ch) || ch == '_';
+        return (ch >= 'a' && ch <= 'z')
+                || (ch >= 'A' && ch <= 'Z')
+                || ch == '_';
+    }
+
+    private boolean isDigit(char ch) {
+        return ch >= '0' && ch <= '9';
     }
 
     private boolean isAlphaNumeric(char ch) {
-        return isAlpha(ch) || Character.isDigit(ch);
+        return isAlpha(ch) || isDigit(ch);
     }
 
     private void skipWhitespaceAndComments() {
@@ -116,7 +123,7 @@ public class Scanner {
     private Token number() {
         int start = current;
 
-        while (Character.isDigit(peek())) {
+        while (isDigit(peek())) {
             advance();
         }
 
@@ -127,7 +134,21 @@ public class Scanner {
                 StandardCharsets.UTF_8
         );
 
+        if (!cabeEmInteiroJack(lexeme)) {
+            throw new RuntimeException(
+                    "Erro léxico na linha " + line
+                            + ": inteiro fora do intervalo 0..32767: " + lexeme
+            );
+        }
+
         return new Token(TokenType.NUMBER, lexeme, line);
+    }
+
+    // Ignora zeros à esquerda e confere o limite sem risco de overflow
+    private boolean cabeEmInteiroJack(String lexeme) {
+        String semZeros = lexeme.replaceFirst("^0+(?=\\d)", "");
+        return semZeros.length() <= 5
+                && Integer.parseInt(semZeros) <= MAIOR_INTEIRO_JACK;
     }
 
     private Token string() {
@@ -216,7 +237,7 @@ public class Scanner {
             return string();
         }
 
-        if (Character.isDigit(ch)) {
+        if (isDigit(ch)) {
             return number();
         }
 
