@@ -5,9 +5,9 @@ Este projeto implementa a primeira etapa do compilador para a linguagem **Jack**
 Desenvolvido em **Java**, o sistema realiza a leitura de arquivos de código-fonte `.jack`, identifica os lexemas de acordo com a especificação formal da linguagem, categoriza-os em tokens fortemente tipados e gera a saída padronizada em formato XML (`*T.xml`), pronta para validação contra o gabarito oficial do curso:
 
 - **Análise Léxica (`Scanner`):** Lê os arquivos `.jack`, ignora comentários (`//`, `/* */`, `/** */`) e espaços em branco, manipulando strings literais, identificadores, inteiros, símbolos e palavras-chave.
-- **Estruturação de Tokens (`Token` e `TokenType`):** Encapsula os tipos léxicos (`KEYWORD`, `SYMBOL`, `IDENTIFIER`, `INT_CONST`, `STRING_CONST`) e seus respectivos valores.
+- **Estruturação de Tokens (`Token` e `TokenType`):** Representa os tokens com tipos internos específicos (como `CLASS`, `PLUS`, `NUMBER`, `IDENT` e `STRING`), seus lexemas e o número da linha de origem.
 - **Exportação XML (`XmlTokenWriter`):** Serializa a sequência de tokens em formato XML com os devidos escapes para caracteres reservados (`<`, `>`, `&`, `"`), gerando os arquivos de tokens (`<tokens> ... </tokens>`).
-- **Validação e Testes:** Bateria de testes automatizados com JUnit 5 cobrindo casos gerais, cenários especiais de formatação e comparação direta com os gabaritos oficiais (`MainT.xml`, `SquareT.xml`, `SquareGameT.xml`).
+- **Validação e Testes:** Bateria de 18 testes automatizados com JUnit 5 para regras léxicas e casos especiais, complementada por comparação manual das saídas XML com os gabaritos oficiais (`MainT.xml`, `SquareT.xml`, `SquareGameT.xml`).
 
 ---
 
@@ -21,7 +21,7 @@ jackcompiler/
 │   │   └── java/
 │   │       └── com/
 │   │           └── jackcompiler/
-│   │               ├── Main.java                          🔹 Ponto de entrada CLI (execução individual e em diretórios)
+│   │               ├── Main.java                          🔹 Ponto de entrada CLI (um arquivo .jack por execução)
 │   │               │
 │   │               ├── lexer/                             🔹 Núcleo da análise léxica
 │   │               │   ├── TokenType.java                 🔹 Enum dos tipos de token da especificação Jack
@@ -36,14 +36,14 @@ jackcompiler/
 │       │   └── com/
 │       │       └── jackcompiler/
 │       │           └── lexer/
-│       │               ├── ScannerTest.java               🔹 Testes unitários do scanner e validação oficial (JUnit 5)
+│       │               ├── ScannerTest.java               🔹 Testes unitários do scanner (JUnit 5)
 │       │               └── ScannerCasosEspeciaisTest.java 🔹 Testes de casos de borda e regras léxicas especiais
 │       │
 │       └── resources/
 │           ├── Exemplo.jack                               🔹 Exemplo simples para testes manuais
-│           ├── ExemploT.xml                               🔹 Gabarito XML do exemplo
+│           ├── ExemploT.xml                               🔹 Saída XML do exemplo
 │           └── oficial/                                   🔹 Casos de teste do Nand2Tetris (Project 10)
-│               ├── entrada/                               🔹 Arquivos .jack e saídas esperadas
+│               ├── entrada/                               🔹 Arquivos .jack e XMLs gerados
 │               │   ├── Main.jack / MainT.xml
 │               │   ├── Square.jack / SquareT.xml
 │               │   └── SquareGame.jack / SquareGameT.xml
@@ -73,12 +73,12 @@ Arquivo .jack
 │  espaços e comentários, e agrupa em tokens.            │
 │                                                        │
 │  "let x = 10 + y;"                                     │
-│   → [KEYWORD: let] [IDENTIFIER: x] [SYMBOL: =]        │
-│     [INT_CONST: 10] [SYMBOL: +] [IDENTIFIER: y]        │
-│     [SYMBOL: ;]                                        │
+│   → [LET: let] [IDENT: x] [EQ: =]                      │
+│     [NUMBER: 10] [PLUS: +] [IDENT: y]                  │
+│     [SEMICOLON: ;]                                     │
 └───────────────────────────┬────────────────────────────┘
 │
-│ List
+│ Fluxo de tokens
 ▼
 ┌────────────────────────────────────────────────────────┐
 │  2. XML TOKEN WRITER                                   │
@@ -88,16 +88,23 @@ Arquivo .jack
 └───────────────────────────┬────────────────────────────┘
 │
 ▼
-Arquivo T.xml gerado
+Arquivo *T.xml gerado
 
- let x = 10 + y 
- ;
+<tokens>
+<keyword> let </keyword>
+<identifier> x </identifier>
+<symbol> = </symbol>
+<integerConstant> 10 </integerConstant>
+<symbol> + </symbol>
+<identifier> y </identifier>
+<symbol> ; </symbol>
+</tokens>
 ```
 
 ### O que cada componente faz
 
 - **`Scanner`** — Faz a varredura do texto fonte e identifica as 5 categorias de tokens suportadas pela linguagem Jack: palavras-chave (`class`, `function`, `method`, `if`, etc.), símbolos (`{`, `}`, `(`, `)`, `;`, etc.), constantes inteiras (`0` a `32767`), constantes de texto (delimitadas por aspas duplas sem quebra de linha) e identificadores válidos.
-- **`Token` & `TokenType`** — Modelam os dados de cada elemento léxico, armazenando seu tipo e seu valor textual literal.
+- **`Token` & `TokenType`** — Modelam cada elemento léxico, armazenando seu tipo específico, o lexema e o número da linha.
 - **`XmlTokenWriter`** — Transforma a sequência de tokens gerada em uma árvore XML bem formada, aplicando automaticamente o tratamento de caracteres especiais XML (ex.: `<` vira `&lt;`, `>` vira `&gt;`, `&` vira `&amp;` e `"` vira `&quot;`).
 
 ---
@@ -117,25 +124,19 @@ mvn clean package
 
 ### 🔹 Execução via linha de comando (CLI)
 
-O executável permite compilar tanto um arquivo individual quanto um diretório completo com múltiplos arquivos:
+O programa processa **um arquivo `.jack` por execução**, usando o Maven. Não há suporte nesta versão para processar uma pasta inteira nem configuração de JAR executável via `java -jar`.
 
-#### 1. Processar um arquivo `.jack` específico
+#### Processar um arquivo `.jack` específico
 ```bash
-java -jar target/jackcompiler-1.0-SNAPSHOT.jar caminho/para/Arquivo.jack
+mvn compile exec:java "-Dexec.args=src/test/resources/Exemplo.jack"
 ```
-> O arquivo `ArquivoT.xml` será gerado automaticamente no mesmo diretório de entrada.
-
-#### 2. Processar uma pasta com múltiplos arquivos `.jack`
-```bash
-java -jar target/jackcompiler-1.0-SNAPSHOT.jar caminho/para/diretorio/
-```
-> Todos os arquivos `.jack` encontrados na pasta serão tokenizados e seus respectivos `*T.xml` serão gerados no mesmo local.
+> O arquivo `ExemploT.xml` será gerado no mesmo diretório do arquivo `.jack`. Para outros arquivos, substitua o caminho no argumento `-Dexec.args`.
 
 ---
 
 ### 🔹 Executar os Testes Automatizados (JUnit 5)
 
-Para validar a conformidade com as regras léxicas e comparar os resultados com os gabaritos oficiais:
+Para validar automaticamente o reconhecimento de tokens e o tratamento de erros (18 testes JUnit 5):
 
 ```bash
 mvn test
@@ -145,35 +146,60 @@ Os testes cobrem:
 
 | Classe de Teste | Cobertura |
 |---|---|
-| `ScannerTest` | Tokenização completa, integridade dos tipos e comparação direta com os gabaritos oficiais do Project 10 (`MainT.xml`, `SquareT.xml`, `SquareGameT.xml`). |
-| `ScannerCasosEspeciaisTest` | Casos de borda: comentários aninhados/multilinha, strings com caracteres especiais, operadores adjacentes e escape de entidades XML. |
+| `ScannerTest` | 10 testes: palavras-chave, identificadores, inteiros, 19 símbolos, divisão e comentários, strings, linhas, erros léxicos e EOF. |
+| `ScannerCasosEspeciaisTest` | 8 testes: limites de inteiros, valores muito grandes, acentos em strings e comentários, identificadores inválidos, finais de linha Windows e strings com quebras `\n`/`\r`. |
 
 ---
 
 ## ✅ Status de validação — Project 10 (Léxico)
 
-Todos os casos de teste do curso oficial foram processados e validados contra os gabaritos:
+Os três arquivos oficiais foram processados e seus XMLs gerados foram comparados com os gabaritos por conteúdo de linha usando `Compare-Object` no PowerShell (desconsiderando diferenças entre `LF` e `CRLF`):
 
 | Arquivo de Entrada | Gabarito Esperado | Validação |
 |---|---|---|
 | `Main.jack` | `MainT.xml` | ✅ Passou |
 | `Square.jack` | `SquareT.xml` | ✅ Passou |
 | `SquareGame.jack` | `SquareGameT.xml` | ✅ Passou |
-| `Exemplo.jack` | `ExemploT.xml` | ✅ Passou |
+
+Para reproduzir a validação, gere as saídas com os arquivos de `src/test/resources/oficial/entrada/`:
+
+```powershell
+foreach ($nome in @("Main", "Square", "SquareGame")) {
+    mvn compile exec:java "-Dexec.args=src/test/resources/oficial/entrada/$nome.jack"
+}
+```
+
+Depois compare os resultados com os arquivos em `src/test/resources/oficial/referencia/`:
+
+```powershell
+$base = "src/test/resources/oficial"
+foreach ($nome in @("Main", "Square", "SquareGame")) {
+    $gerado = Get-Content "$base/entrada/${nome}T.xml"
+    $referencia = Get-Content "$base/referencia/${nome}T.xml"
+    $diferencas = Compare-Object $referencia $gerado
+    if ($diferencas) { Write-Host "$nome : DIFERENTE" }
+    else { Write-Host "$nome : APROVADO" }
+}
+```
+
+O arquivo `Exemplo.jack` foi utilizado adicionalmente como teste manual local, gerando `ExemploT.xml`; ele não faz parte dos três gabaritos oficiais.
 
 ---
 
 ## 📌 Observações
 
 - A formatação de saída segue a convenção `<tokens> ... </tokens>` estipulada para os testes do Project 10 do Nand2Tetris.
-- O tratamento de caracteres especiais de XML (`&`, `<`, `>`, `"`) é realizado na geração do XML para garantir compatibilidade com os comparadores de texto (`TextComparer`).
+- O tratamento de caracteres especiais de XML (`&`, `<`, `>`, `"`) é realizado na geração do XML para permitir comparação com os arquivos de referência.
 - Artefatos gerados em tempo de compilação ou execução dentro da pasta `target/` não são versionados.
 
 ---
 
 ## 👥 Créditos
 
-**Alunos:** Renato Muniz Gomes e José Nunes de Sousa Neto
+**Alunos:**
+
+- **José Nunes de Sousa Neto** — Matrícula: **20250071231**
+- **Renato Muniz Gomes** — Matrícula: **20250071330**
 
 **Disciplina:** EECP0026 — Compiladores  
 
