@@ -98,8 +98,9 @@ class SubroutineTest {
         );
     }
 
+    
     @Test
-    void naoAceitaComandosAindaNaoImplementados() {
+    void reconheceComandoReturn() {
         String codigo = """
                 class Main {
                     function void main() {
@@ -108,9 +109,10 @@ class SubroutineTest {
                 }
                 """;
 
-        assertThrows(
-            UnsupportedOperationException.class,
-            () -> analisar(codigo)
-        );
+        String xml = analisar(codigo);
+
+        assertTrue(xml.contains("<returnStatement>"));
+        assertTrue(xml.contains("<keyword> return </keyword>"));
     }
+
 }
