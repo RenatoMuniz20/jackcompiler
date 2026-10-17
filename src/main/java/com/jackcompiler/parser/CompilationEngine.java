@@ -80,13 +80,10 @@ public class CompilationEngine {
             compileClassVarDec();
         }
 
-        if (match(TokenType.CONSTRUCTOR)
+        while (match(TokenType.CONSTRUCTOR)
                 || match(TokenType.FUNCTION)
                 || match(TokenType.METHOD)) {
-            throw new UnsupportedOperationException(
-                "Analise de subrotinas ainda nao implementada"
-                + " (linha " + atual.getLine() + ")"
-            );
+            compileSubroutineDec();
         }
 
         consume(TokenType.RBRACE);
@@ -131,4 +128,120 @@ public class CompilationEngine {
             throw erro("Tipo de variavel esperado");
         }
     }
+
+    // subroutineDec:
+    // ('constructor' | 'function' | 'method')
+    // ('void' | type) subroutineName '(' parameterList ')' subroutineBody
+    private void compileSubroutineDec() {
+        xml.abrir("subroutineDec");
+
+        if (match(TokenType.CONSTRUCTOR)) {
+            consume(TokenType.CONSTRUCTOR);
+        } else if (match(TokenType.FUNCTION)) {
+            consume(TokenType.FUNCTION);
+        } else {
+            consume(TokenType.METHOD);
+        }
+
+        if (match(TokenType.VOID)) {
+            consume(TokenType.VOID);
+        } else {
+            consumeType();
+        }
+
+        consume(TokenType.IDENT);
+        consume(TokenType.LPAREN);
+
+        compileParameterList();
+
+        consume(TokenType.RPAREN);
+        compileSubroutineBody();
+
+        xml.fechar("subroutineDec");
+    }
+
+    // parameterList: (type varName (',' type varName)*)?
+    private void compileParameterList() {
+        xml.abrir("parameterList");
+
+        if (inicioTipo()) {
+            consumeType();
+            consume(TokenType.IDENT);
+
+            while (match(TokenType.COMMA)) {
+                consume(TokenType.COMMA);
+                consumeType();
+                consume(TokenType.IDENT);
+            }
+        }
+
+        xml.fechar("parameterList");
+    }
+
+    private boolean inicioTipo() {
+        return match(TokenType.INT)
+                || match(TokenType.CHAR)
+                || match(TokenType.BOOLEAN)
+                || match(TokenType.IDENT);
+    }
+
+    // subroutineBody: '{' varDec* statements '}'
+    private void compileSubroutineBody() {
+        xml.abrir("subroutineBody");
+
+        consume(TokenType.LBRACE);
+
+        while (match(TokenType.VAR)) {
+            compileVarDec();
+        }
+
+        compileStatements();
+
+        consume(TokenType.RBRACE);
+
+        xml.fechar("subroutineBody");
+    }
+
+    // varDec: 'var' type varName (',' varName)* ';'
+    private void compileVarDec() {
+        xml.abrir("varDec");
+
+        consume(TokenType.VAR);
+        consumeType();
+        consume(TokenType.IDENT);
+
+        while (match(TokenType.COMMA)) {
+            consume(TokenType.COMMA);
+            consume(TokenType.IDENT);
+        }
+
+        consume(TokenType.SEMICOLON);
+
+        xml.fechar("varDec");
+    }
+
+    // Implementacao provisoria: reconhece apenas blocos sem comandos.
+    // Na proxima etapa sera substituida pelo parser completo de statements.
+    private void compileStatements() {
+        xml.abrir("statements");
+
+        if (match(TokenType.LET)
+                || match(TokenType.IF)
+                || match(TokenType.WHILE)
+                || match(TokenType.DO)
+                || match(TokenType.RETURN)) {
+            throw new UnsupportedOperationException(
+                "Analise de comandos ainda nao implementada"
+                + " (linha " + atual.getLine() + ")"
+            );
+        }
+
+        if (!match(TokenType.RBRACE)) {
+            throw erro("Esperado comando ou fechamento do bloco");
+        }
+
+        xml.fechar("statements");
+    }
+
+
 }
