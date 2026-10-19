@@ -1,6 +1,7 @@
 package com.jackcompiler;
 
 import com.jackcompiler.lexer.Scanner;
+import com.jackcompiler.parser.CompilationEngine;
 import com.jackcompiler.xml.XmlTokenWriter;
 
 import java.io.IOException;
@@ -9,45 +10,68 @@ import java.nio.file.Path;
 
 public class Main {
 
-    public static void main(String[] args) throws IOException {
+    private static final String USO =
+            "Uso: Main [--tokens | --parse] <arquivo.jack> [saida.xml]";
 
-        if (args.length != 1) {
-            System.err.println(
-                "Uso: informe o caminho de um arquivo .jack"
-            );
-            return;
+    public static void main(String[] args) {
+        try {
+            executar(args);
+        } catch (RuntimeException | IOException e) {
+            System.err.println("Erro: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
+    private static void executar(String[] args) throws IOException {
+        int indice = 0;
+        String modo = "";
+
+        if (args.length > 0
+                && (args[0].equals("--tokens") || args[0].equals("--parse"))) {
+            modo = args[0];
+            indice = 1;
         }
 
-        Path inputPath = Path.of(args[0]);
+        int restantes = args.length - indice;
+        if (restantes < 1 || restantes > 2
+                || (modo.isEmpty() && restantes != 1)) {
+            throw new IllegalArgumentException(USO);
+        }
 
-        if (!Files.isRegularFile(inputPath)) {
+        Path entrada = Path.of(args[indice]);
+        Path saidaInformada = restantes == 2 ? Path.of(args[indice + 1]) : null;
+
+        if (!Files.isRegularFile(entrada)) {
             throw new IllegalArgumentException(
-                "Arquivo nao encontrado: " + inputPath
+                    "Arquivo nao encontrado: " + entrada
             );
         }
 
-        String fileName = inputPath.getFileName().toString();
-
-        if (!fileName.endsWith(".jack")) {
+        String nomeArquivo = entrada.getFileName().toString();
+        if (!nomeArquivo.endsWith(".jack")) {
             throw new IllegalArgumentException(
-                "O arquivo deve possuir extensao .jack"
+                    "O arquivo deve possuir extensao .jack"
             );
         }
 
-        byte[] input = Files.readAllBytes(inputPath);
+        String base = nomeArquivo.substring(0, nomeArquivo.length() - 5);
+        byte[] fonte = Files.readAllBytes(entrada);
 
-        Scanner scanner = new Scanner(input);
+        if (!modo.equals("--parse")) {
+            Path saida = saidaInformada != null
+                    ? saidaInformada
+                    : entrada.resolveSibling(base + "T.xml");
+            XmlTokenWriter.write(new Scanner(fonte), saida);
+            System.out.println("XML de tokens gerado: " + saida.toAbsolutePath());
+        }
 
-        String outputName =
-                fileName.substring(0, fileName.length() - 5)
-                + "T.xml";
-
-        Path outputPath = inputPath.resolveSibling(outputName);
-
-        XmlTokenWriter.write(scanner, outputPath);
-
-        System.out.println(
-            "Arquivo XML gerado: " + outputPath.toAbsolutePath()
-        );
+        if (!modo.equals("--tokens")) {
+            Path saida = saidaInformada != null
+                    ? saidaInformada
+                    : entrada.resolveSibling(base + "P.xml");
+            String xml = new CompilationEngine(new Scanner(fonte)).compile();
+            Files.writeString(saida, xml);
+            System.out.println("XML sintatico gerado: " + saida.toAbsolutePath());
+        }
     }
 }
