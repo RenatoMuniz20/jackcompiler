@@ -38,9 +38,9 @@ class ValidacaoOficialTest {
     Stream<DynamicTest> xmlSintaticoEquivaleAoOficial() {
         return PROGRAMAS.stream().map(nome ->
                 DynamicTest.dynamicTest(nome + ".jack -> " + nome + "P.xml", () -> {
-                    byte[] fonte = recurso("/jack/" + nome + ".jack");
+                    byte[] fonte = recurso("/oficial/entrada/" + nome + ".jack");
                     String esperado = new String(
-                            recurso("/expected/" + nome + "P.xml"),
+                            recurso("/oficial/referencia/" + nome + "P.xml"),
                             StandardCharsets.UTF_8
                     );
 
