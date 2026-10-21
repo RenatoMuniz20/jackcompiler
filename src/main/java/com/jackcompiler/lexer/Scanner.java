@@ -9,6 +9,7 @@ public class Scanner {
     private final byte[] input;
     private int current = 0;
     private int line = 1;
+    private int column = 1;
     private static final int MAIOR_INTEIRO_JACK = 32767;
 
     private static final Map<String, TokenType> keywords = new HashMap<>();
@@ -55,10 +56,26 @@ public class Scanner {
         return (char) (input[current + 1] & 0xFF);
     }
 
+    // Atualiza linha e coluna a cada byte consumido. Os bytes de continuacao
+    // UTF-8 nao ocupam novas colunas; CRLF corresponde a uma unica quebra.
     private void advance() {
-        if (current < input.length) {
-            current++;
+        if (current >= input.length) {
+            return;
         }
+
+        int value = input[current] & 0xFF;
+        if (value == '\r') {
+            line++;
+            column = 1;
+        } else if (value == '\n') {
+            if (current == 0 || input[current - 1] != '\r') {
+                line++;
+            }
+            column = 1;
+        } else if ((value & 0xC0) != 0x80) {
+            column++;
+        }
+        current++;
     }
 
     private boolean isAlpha(char ch) {
@@ -79,10 +96,7 @@ public class Scanner {
         while (true) {
             char ch = peek();
 
-            if (ch == ' ' || ch == '\t' || ch == '\r') {
-                advance();
-            } else if (ch == '\n') {
-                line++;
+            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') {
                 advance();
             } else if (ch == '/' && peekNext() == '/') {
                 skipLineComment();
@@ -95,24 +109,22 @@ public class Scanner {
     }
 
     private void skipLineComment() {
-        while (peek() != '\n' && peek() != '\0') {
+        while (peek() != '\n' && peek() != '\r' && peek() != '\0') {
             advance();
         }
     }
 
     private void skipBlockComment() {
         int startLine = line;
+        int startColumn = column;
         advance(); // pula '/'
         advance(); // pula '*'
 
         while (!(peek() == '*' && peekNext() == '/')) {
             if (peek() == '\0') {
                 throw new RuntimeException(
-                        "Erro léxico na linha " + startLine
-                                + ": comentário de bloco não foi fechado");
-            }
-            if (peek() == '\n') {
-                line++;
+                        "Erro léxico na linha " + startLine + ", coluna "
+                                + startColumn + ": comentário de bloco não foi fechado");
             }
             advance();
         }
@@ -122,6 +134,7 @@ public class Scanner {
 
     private Token number() {
         int start = current;
+        int startColumn = column;
 
         while (isDigit(peek())) {
             advance();
@@ -136,12 +149,12 @@ public class Scanner {
 
         if (!cabeEmInteiroJack(lexeme)) {
             throw new RuntimeException(
-                    "Erro léxico na linha " + line
+                    "Erro léxico na linha " + line + ", coluna " + startColumn
                             + ": inteiro fora do intervalo 0..32767: " + lexeme
             );
         }
 
-        return new Token(TokenType.NUMBER, lexeme, line);
+        return new Token(TokenType.NUMBER, lexeme, line, startColumn);
     }
 
     // Ignora zeros à esquerda e confere o limite sem risco de overflow
@@ -153,6 +166,7 @@ public class Scanner {
 
     private Token string() {
         int startLine = line;
+        int startColumn = column;
         advance(); // pula a aspa de abertura '"'
         int start = current;
 
@@ -163,7 +177,8 @@ public class Scanner {
 
         if (peek() != '"') {
             throw new RuntimeException(
-                    "Erro léxico na linha " + startLine + ": string não fechada"
+                    "Erro léxico na linha " + startLine + ", coluna "
+                            + startColumn + ": string não fechada"
             );
         }
 
@@ -175,11 +190,12 @@ public class Scanner {
         );
         advance(); // consome a aspa de fechamento '"'
 
-        return new Token(TokenType.STRING, lexeme, startLine);
+        return new Token(TokenType.STRING, lexeme, startLine, startColumn);
     }
 
     private Token identifier() {
         int start = current;
+        int startColumn = column;
 
         while (isAlphaNumeric(peek())) {
             advance();
@@ -197,7 +213,7 @@ public class Scanner {
                 TokenType.IDENT
         );
 
-        return new Token(type, lexeme, line);
+        return new Token(type, lexeme, line, startColumn);
     }
 
     private TokenType symbolType(char ch) {
@@ -229,9 +245,10 @@ public class Scanner {
         skipWhitespaceAndComments();
 
         char ch = peek();
+        int startColumn = column;
 
         if (ch == '\0') {
-            return new Token(TokenType.EOF, "", line);
+            return new Token(TokenType.EOF, "", line, startColumn);
         }
 
         if (ch == '"') {
@@ -249,11 +266,11 @@ public class Scanner {
         TokenType symbol = symbolType(ch);
         if (symbol != null) {
             advance();
-            return new Token(symbol, String.valueOf(ch), line);
+            return new Token(symbol, String.valueOf(ch), line, startColumn);
         }
 
         throw new RuntimeException(
-                "Erro léxico na linha " + line
+                "Erro léxico na linha " + line + ", coluna " + startColumn
                         + ": caractere inválido '" + ch + "'"
         );
     }

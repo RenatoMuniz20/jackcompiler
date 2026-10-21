@@ -44,6 +44,7 @@ public class CompilationEngine {
     private IllegalArgumentException erro(String mensagem) {
         return new IllegalArgumentException(
             "Erro sintatico na linha " + atual.getLine()
+            + ", coluna " + atual.getColumn()
             + ": " + mensagem
             + ". Encontrado: " + atual.getType()
             + " ('" + atual.getLexeme() + "')"
