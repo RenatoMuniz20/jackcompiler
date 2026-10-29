@@ -1,6 +1,7 @@
 package com.jackcompiler.parser;
 
 import com.jackcompiler.lexer.Scanner;
+import com.jackcompiler.xml.XmlTokenWriter;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 
@@ -16,8 +17,15 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ValidacaoOficialTest {
 
-    private static final List<String> PROGRAMAS =
-            List.of("Main", "Square", "SquareGame");
+    private static final List<String> PROGRAMAS = List.of(
+            "Square/Main",
+            "Square/Square",
+            "Square/SquareGame",
+            "ExpressionLessSquare/Main",
+            "ExpressionLessSquare/Square",
+            "ExpressionLessSquare/SquareGame",
+            "ArrayTest/Main"
+    );
 
     private static byte[] recurso(String caminho) throws IOException {
         try (InputStream in =
@@ -32,6 +40,23 @@ class ValidacaoOficialTest {
                 .map(String::strip)
                 .filter(linha -> !linha.isEmpty())
                 .collect(Collectors.joining("\n"));
+    }
+
+    @TestFactory
+    Stream<DynamicTest> xmlLexicoEquivaleAoOficial() {
+        return PROGRAMAS.stream().map(nome ->
+                DynamicTest.dynamicTest(nome + ".jack -> " + nome + "T.xml", () -> {
+                    byte[] fonte = recurso("/oficial/entrada/" + nome + ".jack");
+                    String esperado = new String(
+                            recurso("/oficial/referencia/" + nome + "T.xml"),
+                            StandardCharsets.UTF_8
+                    );
+
+                    String gerado = XmlTokenWriter.toXml(new Scanner(fonte));
+
+                    assertEquals(normalizar(esperado), normalizar(gerado));
+                })
+        );
     }
 
     @TestFactory
