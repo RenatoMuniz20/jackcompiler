@@ -5,6 +5,7 @@ import com.jackcompiler.parser.CompilationEngine;
 import com.jackcompiler.xml.XmlTokenWriter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -60,7 +61,7 @@ public class Main {
         if (!modo.equals("--parse")) {
             Path saida = saidaInformada != null
                     ? saidaInformada
-                    : entrada.resolveSibling(base + "T.xml");
+                    : resolverSaidaPadrao(entrada, base + "T.xml");
             XmlTokenWriter.write(new Scanner(fonte), saida);
             System.out.println("XML de tokens gerado: " + saida.toAbsolutePath());
         }
@@ -68,10 +69,21 @@ public class Main {
         if (!modo.equals("--tokens")) {
             Path saida = saidaInformada != null
                     ? saidaInformada
-                    : entrada.resolveSibling(base + "P.xml");
+                    : resolverSaidaPadrao(entrada, base + "P.xml");
             String xml = new CompilationEngine(new Scanner(fonte)).compile();
-            Files.writeString(saida, xml);
+            Files.writeString(saida, xml, StandardCharsets.UTF_8);
             System.out.println("XML sintatico gerado: " + saida.toAbsolutePath());
         }
+    }
+
+    private static Path resolverSaidaPadrao(Path entrada, String nomeArquivoSaida)
+            throws IOException {
+        String caminhoNormalizado = entrada.toString().replace('\\', '/');
+        if (caminhoNormalizado.contains("src/test/resources")) {
+            Path dirSaida = Path.of("target", "generated-output");
+            Files.createDirectories(dirSaida);
+            return dirSaida.resolve(nomeArquivoSaida);
+        }
+        return entrada.resolveSibling(nomeArquivoSaida);
     }
 }
