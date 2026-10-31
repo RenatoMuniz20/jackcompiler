@@ -329,10 +329,21 @@ public class CompilationEngine {
         xml.abrir("expression");
         compileTerm();
         while (operadorBinario(peek().getType())) {
-            consume(peek().getType());
+            TokenType op = consume(peek().getType()).getType();
             compileTerm();
+            compileOperators(op);
         }
         xml.fechar("expression");
+    }
+
+    private void compileOperators(TokenType type) {
+        if (type == TokenType.ASTERISK) {
+            vmWriter.writeCall("Math.multiply", 2);
+        } else if (type == TokenType.SLASH) {
+            vmWriter.writeCall("Math.divide", 2);
+        } else {
+            vmWriter.writeArithmetic(typeOperator(type));
+        }
     }
 
     private boolean operadorBinario(TokenType tipo) {
@@ -349,17 +360,52 @@ public class CompilationEngine {
         xml.abrir("term");
         TokenType tipo = peek().getType();
         switch (tipo) {
-            case NUMBER, STRING, TRUE, FALSE, NULL, THIS -> consume(tipo);
+            case NUMBER -> {
+                Token tk = consume(TokenType.NUMBER);
+                vmWriter.writePush(Segment.CONST, Integer.parseInt(tk.getLexeme()));
+            }
+            case STRING -> {
+                Token tk = consume(TokenType.STRING);
+                String strValue = tk.getLexeme();
+                vmWriter.writePush(Segment.CONST, strValue.length());
+                vmWriter.writeCall("String.new", 1);
+                for (int i = 0; i < strValue.length(); i++) {
+                    vmWriter.writePush(Segment.CONST, strValue.charAt(i));
+                    vmWriter.writeCall("String.appendChar", 2);
+                }
+            }
+            case TRUE -> {
+                consume(TokenType.TRUE);
+                vmWriter.writePush(Segment.CONST, 0);
+                vmWriter.writeArithmetic(Command.NOT);
+            }
+            case FALSE, NULL -> {
+                consume(tipo);
+                vmWriter.writePush(Segment.CONST, 0);
+            }
+            case THIS -> {
+                consume(TokenType.THIS);
+                vmWriter.writePush(Segment.POINTER, 0);
+            }
             case IDENT -> {
                 if (proximo.getType() == TokenType.LPAREN
                         || proximo.getType() == TokenType.DOT) {
                     compileSubroutineCall();
                 } else {
-                    consume(TokenType.IDENT);
+                    String varName = consume(TokenType.IDENT).getLexeme();
+                    Symbol sym = symbolTable.resolve(varName);
                     if (match(TokenType.LBRACKET)) {
                         consume(TokenType.LBRACKET);
                         compileExpression();
+                        if (sym != null) {
+                            vmWriter.writePush(kind2Segment(sym.kind()), sym.index());
+                            vmWriter.writeArithmetic(Command.ADD);
+                        }
                         consume(TokenType.RBRACKET);
+                        vmWriter.writePop(Segment.POINTER, 1);
+                        vmWriter.writePush(Segment.THAT, 0);
+                    } else if (sym != null) {
+                        vmWriter.writePush(kind2Segment(sym.kind()), sym.index());
                     }
                 }
             }
@@ -369,12 +415,39 @@ public class CompilationEngine {
                 consume(TokenType.RPAREN);
             }
             case MINUS, NOT -> {
-                consume(tipo);
+                TokenType op = consume(tipo).getType();
                 compileTerm();
+                if (op == TokenType.MINUS) {
+                    vmWriter.writeArithmetic(Command.NEG);
+                } else {
+                    vmWriter.writeArithmetic(Command.NOT);
+                }
             }
             default -> throw erro("Termo esperado");
         }
         xml.fechar("term");
+    }
+
+    private Segment kind2Segment(Kind kind) {
+        return switch (kind) {
+            case STATIC -> Segment.STATIC;
+            case FIELD -> Segment.THIS;
+            case VAR -> Segment.LOCAL;
+            case ARG -> Segment.ARG;
+        };
+    }
+
+    private Command typeOperator(TokenType type) {
+        return switch (type) {
+            case PLUS -> Command.ADD;
+            case MINUS -> Command.SUB;
+            case LT -> Command.LT;
+            case GT -> Command.GT;
+            case EQ -> Command.EQ;
+            case AND -> Command.AND;
+            case OR -> Command.OR;
+            default -> throw new IllegalArgumentException("Operador invalido: " + type);
+        };
     }
 
     // subroutineCall: subroutineName '(' expressionList ')'
