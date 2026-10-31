@@ -1,5 +1,11 @@
 package com.jackcompiler.parser;
 
+import com.jackcompiler.codegen.SymbolTable;
+import com.jackcompiler.codegen.SymbolTable.Kind;
+import com.jackcompiler.codegen.SymbolTable.Symbol;
+import com.jackcompiler.codegen.VMWriter;
+import com.jackcompiler.codegen.VMWriter.Command;
+import com.jackcompiler.codegen.VMWriter.Segment;
 import com.jackcompiler.lexer.Scanner;
 import com.jackcompiler.lexer.Token;
 import com.jackcompiler.lexer.TokenType;
@@ -9,13 +15,18 @@ public class CompilationEngine {
 
     private final Scanner scanner;
     private final XmlParseWriter xml;
+    private final SymbolTable symbolTable;
+    private final VMWriter vmWriter;
 
     private Token atual;
     private Token proximo;
+    private String className;
 
     public CompilationEngine(Scanner scanner) {
         this.scanner = scanner;
         this.xml = new XmlParseWriter();
+        this.symbolTable = new SymbolTable();
+        this.vmWriter = new VMWriter();
         this.atual = scanner.nextToken();
         this.proximo = scanner.nextToken();
     }
@@ -65,7 +76,7 @@ public class CompilationEngine {
     private void compileClass() {
         xml.abrir("class");
         consume(TokenType.CLASS);
-        consume(TokenType.IDENT);
+        className = consume(TokenType.IDENT).getLexeme();
         consume(TokenType.LBRACE);
 
         while (match(TokenType.STATIC) || match(TokenType.FIELD)) {
@@ -84,16 +95,22 @@ public class CompilationEngine {
     // classVarDec: ('static' | 'field') type varName (',' varName)* ';'
     private void compileClassVarDec() {
         xml.abrir("classVarDec");
+        Kind kind;
         if (match(TokenType.STATIC)) {
             consume(TokenType.STATIC);
+            kind = Kind.STATIC;
         } else {
             consume(TokenType.FIELD);
+            kind = Kind.FIELD;
         }
-        consumeType();
-        consume(TokenType.IDENT);
+        String type = consumeType();
+        String name = consume(TokenType.IDENT).getLexeme();
+        symbolTable.define(name, type, kind);
+
         while (match(TokenType.COMMA)) {
             consume(TokenType.COMMA);
-            consume(TokenType.IDENT);
+            name = consume(TokenType.IDENT).getLexeme();
+            symbolTable.define(name, type, kind);
         }
         consume(TokenType.SEMICOLON);
         xml.fechar("classVarDec");
@@ -137,12 +154,14 @@ public class CompilationEngine {
     private void compileParameterList() {
         xml.abrir("parameterList");
         if (inicioTipo()) {
-            consumeType();
-            consume(TokenType.IDENT);
+            String type = consumeType();
+            String name = consume(TokenType.IDENT).getLexeme();
+            symbolTable.define(name, type, Kind.ARG);
             while (match(TokenType.COMMA)) {
                 consume(TokenType.COMMA);
-                consumeType();
-                consume(TokenType.IDENT);
+                type = consumeType();
+                name = consume(TokenType.IDENT).getLexeme();
+                symbolTable.define(name, type, Kind.ARG);
             }
         }
         xml.fechar("parameterList");
@@ -169,11 +188,13 @@ public class CompilationEngine {
     private void compileVarDec() {
         xml.abrir("varDec");
         consume(TokenType.VAR);
-        consumeType();
-        consume(TokenType.IDENT);
+        String type = consumeType();
+        String name = consume(TokenType.IDENT).getLexeme();
+        symbolTable.define(name, type, Kind.VAR);
         while (match(TokenType.COMMA)) {
             consume(TokenType.COMMA);
-            consume(TokenType.IDENT);
+            name = consume(TokenType.IDENT).getLexeme();
+            symbolTable.define(name, type, Kind.VAR);
         }
         consume(TokenType.SEMICOLON);
         xml.fechar("varDec");
