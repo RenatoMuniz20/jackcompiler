@@ -33,12 +33,14 @@ public class CompilationEngine {
         return peek().getType() == tipo;
     }
 
-    private void consume(TokenType tipo) {
+    private Token consume(TokenType tipo) {
         if (!match(tipo)) {
             throw erro("Esperado " + tipo);
         }
+        Token consumido = atual;
         xml.escreverToken(atual);
         advance();
+        return consumido;
     }
 
     private IllegalArgumentException erro(String mensagem) {
@@ -97,11 +99,11 @@ public class CompilationEngine {
         xml.fechar("classVarDec");
     }
 
-    private void consumeType() {
+    private String consumeType() {
         TokenType tipo = peek().getType();
         if (tipo == TokenType.INT || tipo == TokenType.CHAR
                 || tipo == TokenType.BOOLEAN || tipo == TokenType.IDENT) {
-            consume(tipo);
+            return consume(tipo).getLexeme();
         } else {
             throw erro("Tipo de variavel esperado");
         }
