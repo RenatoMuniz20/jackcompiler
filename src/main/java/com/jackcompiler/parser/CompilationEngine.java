@@ -126,27 +126,44 @@ public class CompilationEngine {
         }
     }
 
+    public String compileVm() {
+        compile();
+        return vmWriter.vmOutput();
+    }
+
+    public String getVm() {
+        return vmWriter.vmOutput();
+    }
+
     // subroutineDec: ('constructor' | 'function' | 'method')
     // ('void' | type) subroutineName '(' parameterList ')' subroutineBody
     private void compileSubroutineDec() {
         xml.abrir("subroutineDec");
+        symbolTable.startSubroutine();
+
+        TokenType subroutineType;
         if (match(TokenType.CONSTRUCTOR)) {
-            consume(TokenType.CONSTRUCTOR);
+            subroutineType = consume(TokenType.CONSTRUCTOR).getType();
         } else if (match(TokenType.FUNCTION)) {
-            consume(TokenType.FUNCTION);
+            subroutineType = consume(TokenType.FUNCTION).getType();
         } else {
-            consume(TokenType.METHOD);
+            subroutineType = consume(TokenType.METHOD).getType();
+            symbolTable.define("this", className, Kind.ARG);
         }
+
         if (match(TokenType.VOID)) {
             consume(TokenType.VOID);
         } else {
             consumeType();
         }
-        consume(TokenType.IDENT);
+
+        String subroutineName = consume(TokenType.IDENT).getLexeme();
+        String functionName = className + "." + subroutineName;
+
         consume(TokenType.LPAREN);
         compileParameterList();
         consume(TokenType.RPAREN);
-        compileSubroutineBody();
+        compileSubroutineBody(functionName, subroutineType);
         xml.fechar("subroutineDec");
     }
 
@@ -173,12 +190,25 @@ public class CompilationEngine {
     }
 
     // subroutineBody: '{' varDec* statements '}'
-    private void compileSubroutineBody() {
+    private void compileSubroutineBody(String functionName, TokenType subroutineType) {
         xml.abrir("subroutineBody");
         consume(TokenType.LBRACE);
         while (match(TokenType.VAR)) {
             compileVarDec();
         }
+
+        int nLocals = symbolTable.varCount(Kind.VAR);
+        vmWriter.writeFunction(functionName, nLocals);
+
+        if (subroutineType == TokenType.CONSTRUCTOR) {
+            vmWriter.writePush(Segment.CONST, symbolTable.varCount(Kind.FIELD));
+            vmWriter.writeCall("Memory.alloc", 1);
+            vmWriter.writePop(Segment.POINTER, 0);
+        } else if (subroutineType == TokenType.METHOD) {
+            vmWriter.writePush(Segment.ARG, 0);
+            vmWriter.writePop(Segment.POINTER, 0);
+        }
+
         compileStatements();
         consume(TokenType.RBRACE);
         xml.fechar("subroutineBody");
