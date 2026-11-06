@@ -305,12 +305,16 @@ public class CompilationEngine {
 
     // doStatement: 'do' subroutineCall ';'
     private void compileDo() {
-        xml.abrir("doStatement");
-        consume(TokenType.DO);
-        compileSubroutineCall();
-        consume(TokenType.SEMICOLON);
-        xml.fechar("doStatement");
-    }
+            xml.abrir("doStatement");
+            consume(TokenType.DO);
+            compileSubroutineCall();
+            consume(TokenType.SEMICOLON);
+            
+            // Remove o valor de retorno (0) do topo da pilha e descarta em TEMP 0
+            vmWriter.writePop(Segment.TEMP, 0);
+            
+            xml.fechar("doStatement");
+        }
 
     // returnStatement: 'return' expression? ';'
     private void compileReturn() {
@@ -453,26 +457,65 @@ public class CompilationEngine {
     // subroutineCall: subroutineName '(' expressionList ')'
     //               | (className | varName) '.' subroutineName '(' expressionList ')'
     private void compileSubroutineCall() {
-        consume(TokenType.IDENT);
-        if (match(TokenType.DOT)) {
-            consume(TokenType.DOT);
-            consume(TokenType.IDENT);
+            // Guarda o primeiro nome (pode ser o nome da função, o nome do objeto, ou o nome da classe)
+            String firstName = consume(TokenType.IDENT).getLexeme();
+            String methodName = "";
+            int nArgs = 0;
+            boolean isMethod = false;
+
+            if (match(TokenType.DOT)) {
+                consume(TokenType.DOT);
+                String secondName = consume(TokenType.IDENT).getLexeme();
+                
+                // Verifica se firstName é um objeto instanciado (está na SymbolTable)
+                Symbol sym = symbolTable.resolve(firstName);
+                if (sym != null) {
+                    // É chamada de método num objeto: ex: obj.metodo()
+                    isMethod = true;
+                    // Empurra o objeto (o this da sub-rotina chamada)
+                    vmWriter.writePush(kind2Segment(sym.kind()), sym.index());
+                    // O nome real da função é TipoDoObjeto.Metodo
+                    methodName = sym.type() + "." + secondName;
+                } else {
+                    // É chamada de função estática / construtor: ex: Math.multiply()
+                    methodName = firstName + "." + secondName;
+                }
+            } else {
+                // Chamada de método implícita na mesma classe: ex: metodo()
+                isMethod = true;
+                // Empurra a instância atual ("this") para o método que vai ser chamado
+                vmWriter.writePush(Segment.POINTER, 0);
+                methodName = this.className + "." + firstName;
+            }
+
+            consume(TokenType.LPAREN);
+            nArgs = compileExpressionList();
+            consume(TokenType.RPAREN);
+
+            // Se for um método (objeto empurrado antes dos argumentos), aumentamos nArgs em 1
+            if (isMethod) {
+                nArgs++;
+            }
+
+            vmWriter.writeCall(methodName, nArgs);
         }
-        consume(TokenType.LPAREN);
-        compileExpressionList();
-        consume(TokenType.RPAREN);
-    }
 
     // expressionList: (expression (',' expression)*)?
-    private void compileExpressionList() {
-        xml.abrir("expressionList");
-        if (!match(TokenType.RPAREN)) {
-            compileExpression();
-            while (match(TokenType.COMMA)) {
-                consume(TokenType.COMMA);
+    private int compileExpressionList() {
+            xml.abrir("expressionList");
+            int nArgs = 0;
+            
+            if (!match(TokenType.RPAREN)) {
                 compileExpression();
+                nArgs++;
+                
+                while (match(TokenType.COMMA)) {
+                    consume(TokenType.COMMA);
+                    compileExpression();
+                    nArgs++;
+                }
             }
+            xml.fechar("expressionList");
+            return nArgs;
         }
-        xml.fechar("expressionList");
-    }
 }
