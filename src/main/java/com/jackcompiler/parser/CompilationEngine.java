@@ -22,6 +22,9 @@ public class CompilationEngine {
     private Token proximo;
     private String className;
 
+    private int ifLabelNum = 0;
+    private int whileLabelNum = 0;
+
     public CompilationEngine(Scanner scanner) {
         this.scanner = scanner;
         this.xml = new XmlParseWriter();
@@ -256,53 +259,127 @@ public class CompilationEngine {
 
     // letStatement: 'let' varName ('[' expression ']')? '=' expression ';'
     private void compileLet() {
-        xml.abrir("letStatement");
-        consume(TokenType.LET);
-        consume(TokenType.IDENT);
-        if (match(TokenType.LBRACKET)) {
-            consume(TokenType.LBRACKET);
+            xml.abrir("letStatement");
+            consume(TokenType.LET);
+            
+            String varName = consume(TokenType.IDENT).getLexeme();
+            Symbol sym = symbolTable.resolve(varName);
+            boolean isArray = false;
+            
+            if (match(TokenType.LBRACKET)) {
+                isArray = true;
+                consume(TokenType.LBRACKET);
+                // 1. Calcula o índice: i
+                compileExpression();
+                consume(TokenType.RBRACKET);
+                
+                // 2. Coloca a base do array na pilha
+                if (sym != null) {
+                    vmWriter.writePush(kind2Segment(sym.kind()), sym.index());
+                }
+                
+                // 3. Soma base + i
+                vmWriter.writeArithmetic(Command.ADD);
+            }
+            
+            consume(TokenType.EQ);
+            // Compila o lado direito da expressão
             compileExpression();
-            consume(TokenType.RBRACKET);
+            consume(TokenType.SEMICOLON);
+            
+            if (isArray) {
+                // Se for array: precisamos ancorar a expressão no THAT
+                // A pilha tem: [endereço], [valor_da_expressao] (o valor fica no topo)
+                // Guardamos o valor temporariamente:
+                vmWriter.writePop(Segment.TEMP, 0); 
+                // Ancoramos o ponteiro THAT no endereço calculado:
+                vmWriter.writePop(Segment.POINTER, 1);
+                // Puxamos o valor de volta do TEMP e metemos na memória apontada por THAT
+                vmWriter.writePush(Segment.TEMP, 0);
+                vmWriter.writePop(Segment.THAT, 0);
+            } else {
+                // Se for variável simples: guardamos no respetivo segmento
+                if (sym != null) {
+                    vmWriter.writePop(kind2Segment(sym.kind()), sym.index());
+                }
+            }
+            
+            xml.fechar("letStatement");
         }
-        consume(TokenType.EQ);
-        compileExpression();
-        consume(TokenType.SEMICOLON);
-        xml.fechar("letStatement");
-    }
 
     // ifStatement: 'if' '(' expression ')' '{' statements '}'
     //              ('else' '{' statements '}')?
     private void compileIf() {
-        xml.abrir("ifStatement");
-        consume(TokenType.IF);
-        consume(TokenType.LPAREN);
-        compileExpression();
-        consume(TokenType.RPAREN);
-        consume(TokenType.LBRACE);
-        compileStatements();
-        consume(TokenType.RBRACE);
-        if (match(TokenType.ELSE)) {
-            consume(TokenType.ELSE);
+            xml.abrir("ifStatement");
+            
+            // Captura o número atual do label e incrementa para o próximo uso
+            int labelNum = ifLabelNum++;
+            String lTrue = "IF_TRUE" + labelNum;
+            String lFalse = "IF_FALSE" + labelNum;
+            String lEnd = "IF_END" + labelNum;
+
+            consume(TokenType.IF);
+            consume(TokenType.LPAREN);
+            compileExpression(); // Empilha o resultado da condição (true/false)
+            consume(TokenType.RPAREN);
+            
+            // Verifica a condição e salta
+            vmWriter.writeIf(lTrue);
+            vmWriter.writeGoto(lFalse);
+            vmWriter.writeLabel(lTrue);
+
             consume(TokenType.LBRACE);
             compileStatements();
             consume(TokenType.RBRACE);
+            
+            if (match(TokenType.ELSE)) {
+                // Se o IF verdadeiro rodou, tem de saltar o ELSE
+                vmWriter.writeGoto(lEnd);
+                vmWriter.writeLabel(lFalse);
+                
+                consume(TokenType.ELSE);
+                consume(TokenType.LBRACE);
+                compileStatements();
+                consume(TokenType.RBRACE);
+                
+                vmWriter.writeLabel(lEnd);
+            } else {
+                // Se não houver ELSE, o falso é simplesmente o fim
+                vmWriter.writeLabel(lFalse);
+            }
+            
+            xml.fechar("ifStatement");
         }
-        xml.fechar("ifStatement");
-    }
 
     // whileStatement: 'while' '(' expression ')' '{' statements '}'
     private void compileWhile() {
-        xml.abrir("whileStatement");
-        consume(TokenType.WHILE);
-        consume(TokenType.LPAREN);
-        compileExpression();
-        consume(TokenType.RPAREN);
-        consume(TokenType.LBRACE);
-        compileStatements();
-        consume(TokenType.RBRACE);
-        xml.fechar("whileStatement");
-    }
+            xml.abrir("whileStatement");
+            
+            int labelNum = whileLabelNum++;
+            String lExp = "WHILE_EXP" + labelNum;
+            String lEnd = "WHILE_END" + labelNum;
+            
+            vmWriter.writeLabel(lExp);
 
+            consume(TokenType.WHILE);
+            consume(TokenType.LPAREN);
+            compileExpression(); // Empilha o resultado da condição
+            consume(TokenType.RPAREN);
+            
+            // Inverte a condição: se for falso (!condicao), sai do laço
+            vmWriter.writeArithmetic(Command.NOT);
+            vmWriter.writeIf(lEnd);
+
+            consume(TokenType.LBRACE);
+            compileStatements();
+            consume(TokenType.RBRACE);
+            
+            // Retorna para reavaliar a expressão
+            vmWriter.writeGoto(lExp);
+            vmWriter.writeLabel(lEnd);
+            
+            xml.fechar("whileStatement");
+        }
     // doStatement: 'do' subroutineCall ';'
     private void compileDo() {
             xml.abrir("doStatement");
@@ -318,14 +395,21 @@ public class CompilationEngine {
 
     // returnStatement: 'return' expression? ';'
     private void compileReturn() {
-        xml.abrir("returnStatement");
-        consume(TokenType.RETURN);
-        if (!match(TokenType.SEMICOLON)) {
-            compileExpression();
+            xml.abrir("returnStatement");
+            consume(TokenType.RETURN);
+            
+            if (!match(TokenType.SEMICOLON)) {
+                // Retorna o resultado da expressão
+                compileExpression();
+            } else {
+                // Função void: força o retorno do valor 0
+                vmWriter.writePush(Segment.CONST, 0);
+            }
+            
+            consume(TokenType.SEMICOLON);
+            vmWriter.writeReturn(); // Escreve a instrução return na VM
+            xml.fechar("returnStatement");
         }
-        consume(TokenType.SEMICOLON);
-        xml.fechar("returnStatement");
-    }
 
     // expression: term (op term)*
     // Jack nao define precedencia diferente para operadores binarios.
