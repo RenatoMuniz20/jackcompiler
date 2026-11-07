@@ -24,7 +24,7 @@
         </dependency>
     </dependencies>
 
-<build>
+    <build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -47,7 +47,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Plugin adicionado agora -->
+            <!-- Gera JAR executavel: java -jar target/jackcompiler-1.0-SNAPSHOT.jar -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -62,5 +62,5 @@
             </plugin>
         </plugins>
     </build>
-   
+
 </project>
