@@ -5,6 +5,8 @@ import com.jackcompiler.parser.CompilationEngine;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class GeneratorCodeTest {
 
@@ -134,5 +136,13 @@ public class GeneratorCodeTest {
                 "return\n";
                 
         assertEquals(esperado.trim(), vm.trim());
+    }
+
+    @Test
+    void testVariavelNaoDeclaradaGeraErro() {
+        String input = "class Main { function void main() { var int x; let x = y; return; } }";
+
+        IllegalArgumentException erro = assertThrows(IllegalArgumentException.class, () -> compilar(input));
+        assertTrue(erro.getMessage().contains("variavel nao declarada 'y'"), erro.getMessage());
     }
 }

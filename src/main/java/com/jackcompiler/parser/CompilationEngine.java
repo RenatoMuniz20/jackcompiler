@@ -24,6 +24,7 @@ public class CompilationEngine {
 
     private int ifLabelNum = 0;
     private int whileLabelNum = 0;
+    private boolean gerandoVm = false;
 
     public CompilationEngine(Scanner scanner) {
         this.scanner = scanner;
@@ -130,6 +131,7 @@ public class CompilationEngine {
     }
 
     public String compileVm() {
+        gerandoVm = true;
         compile();
         return vmWriter.vmOutput();
     }
@@ -259,157 +261,153 @@ public class CompilationEngine {
 
     // letStatement: 'let' varName ('[' expression ']')? '=' expression ';'
     private void compileLet() {
-            xml.abrir("letStatement");
-            consume(TokenType.LET);
-            
-            String varName = consume(TokenType.IDENT).getLexeme();
-            Symbol sym = symbolTable.resolve(varName);
-            boolean isArray = false;
-            
-            if (match(TokenType.LBRACKET)) {
-                isArray = true;
-                consume(TokenType.LBRACKET);
-                // 1. Calcula o índice: i
-                compileExpression();
-                consume(TokenType.RBRACKET);
-                
-                // 2. Coloca a base do array na pilha
-                if (sym != null) {
-                    vmWriter.writePush(kind2Segment(sym.kind()), sym.index());
-                }
-                
-                // 3. Soma base + i
-                vmWriter.writeArithmetic(Command.ADD);
-            }
-            
-            consume(TokenType.EQ);
-            // Compila o lado direito da expressão
+        xml.abrir("letStatement");
+        consume(TokenType.LET);
+
+        Symbol sym = resolverVariavel(consume(TokenType.IDENT));
+        boolean isArray = false;
+
+        if (match(TokenType.LBRACKET)) {
+            isArray = true;
+            consume(TokenType.LBRACKET);
+            // 1. Calcula o índice: i
             compileExpression();
-            consume(TokenType.SEMICOLON);
-            
-            if (isArray) {
-                // Se for array: precisamos ancorar a expressão no THAT
-                // A pilha tem: [endereço], [valor_da_expressao] (o valor fica no topo)
-                // Guardamos o valor temporariamente:
-                vmWriter.writePop(Segment.TEMP, 0); 
-                // Ancoramos o ponteiro THAT no endereço calculado:
-                vmWriter.writePop(Segment.POINTER, 1);
-                // Puxamos o valor de volta do TEMP e metemos na memória apontada por THAT
-                vmWriter.writePush(Segment.TEMP, 0);
-                vmWriter.writePop(Segment.THAT, 0);
-            } else {
-                // Se for variável simples: guardamos no respetivo segmento
-                if (sym != null) {
-                    vmWriter.writePop(kind2Segment(sym.kind()), sym.index());
-                }
-            }
-            
-            xml.fechar("letStatement");
+            consume(TokenType.RBRACKET);
+
+            // 2. Coloca a base do array na pilha
+            pushVariavel(sym);
+
+            // 3. Soma base + i
+            vmWriter.writeArithmetic(Command.ADD);
         }
+
+        consume(TokenType.EQ);
+        // Compila o lado direito da expressão
+        compileExpression();
+        consume(TokenType.SEMICOLON);
+
+        if (isArray) {
+            // Se for array: precisamos ancorar a expressão no THAT
+            // A pilha tem: [endereço], [valor_da_expressao] (o valor fica no topo)
+            // Guardamos o valor temporariamente:
+            vmWriter.writePop(Segment.TEMP, 0);
+            // Ancoramos o ponteiro THAT no endereço calculado:
+            vmWriter.writePop(Segment.POINTER, 1);
+            // Puxamos o valor de volta do TEMP e metemos na memória apontada por THAT
+            vmWriter.writePush(Segment.TEMP, 0);
+            vmWriter.writePop(Segment.THAT, 0);
+        } else {
+            // Se for variável simples: guardamos no respetivo segmento
+            popVariavel(sym);
+        }
+
+        xml.fechar("letStatement");
+    }
 
     // ifStatement: 'if' '(' expression ')' '{' statements '}'
     //              ('else' '{' statements '}')?
     private void compileIf() {
-            xml.abrir("ifStatement");
-            
-            // Captura o número atual do label e incrementa para o próximo uso
-            int labelNum = ifLabelNum++;
-            String lTrue = "IF_TRUE" + labelNum;
-            String lFalse = "IF_FALSE" + labelNum;
-            String lEnd = "IF_END" + labelNum;
+        xml.abrir("ifStatement");
 
-            consume(TokenType.IF);
-            consume(TokenType.LPAREN);
-            compileExpression(); // Empilha o resultado da condição (true/false)
-            consume(TokenType.RPAREN);
-            
-            // Verifica a condição e salta
-            vmWriter.writeIf(lTrue);
-            vmWriter.writeGoto(lFalse);
-            vmWriter.writeLabel(lTrue);
+        // Captura o número atual do label e incrementa para o próximo uso
+        int labelNum = ifLabelNum++;
+        String lTrue = "IF_TRUE" + labelNum;
+        String lFalse = "IF_FALSE" + labelNum;
+        String lEnd = "IF_END" + labelNum;
 
+        consume(TokenType.IF);
+        consume(TokenType.LPAREN);
+        compileExpression(); // Empilha o resultado da condição (true/false)
+        consume(TokenType.RPAREN);
+
+        // Verifica a condição e salta
+        vmWriter.writeIf(lTrue);
+        vmWriter.writeGoto(lFalse);
+        vmWriter.writeLabel(lTrue);
+
+        consume(TokenType.LBRACE);
+        compileStatements();
+        consume(TokenType.RBRACE);
+
+        if (match(TokenType.ELSE)) {
+            // Se o IF verdadeiro rodou, tem de saltar o ELSE
+            vmWriter.writeGoto(lEnd);
+            vmWriter.writeLabel(lFalse);
+
+            consume(TokenType.ELSE);
             consume(TokenType.LBRACE);
             compileStatements();
             consume(TokenType.RBRACE);
-            
-            if (match(TokenType.ELSE)) {
-                // Se o IF verdadeiro rodou, tem de saltar o ELSE
-                vmWriter.writeGoto(lEnd);
-                vmWriter.writeLabel(lFalse);
-                
-                consume(TokenType.ELSE);
-                consume(TokenType.LBRACE);
-                compileStatements();
-                consume(TokenType.RBRACE);
-                
-                vmWriter.writeLabel(lEnd);
-            } else {
-                // Se não houver ELSE, o falso é simplesmente o fim
-                vmWriter.writeLabel(lFalse);
-            }
-            
-            xml.fechar("ifStatement");
+
+            vmWriter.writeLabel(lEnd);
+        } else {
+            // Se não houver ELSE, o falso é simplesmente o fim
+            vmWriter.writeLabel(lFalse);
         }
+
+        xml.fechar("ifStatement");
+    }
 
     // whileStatement: 'while' '(' expression ')' '{' statements '}'
     private void compileWhile() {
-            xml.abrir("whileStatement");
-            
-            int labelNum = whileLabelNum++;
-            String lExp = "WHILE_EXP" + labelNum;
-            String lEnd = "WHILE_END" + labelNum;
-            
-            vmWriter.writeLabel(lExp);
+        xml.abrir("whileStatement");
 
-            consume(TokenType.WHILE);
-            consume(TokenType.LPAREN);
-            compileExpression(); // Empilha o resultado da condição
-            consume(TokenType.RPAREN);
-            
-            // Inverte a condição: se for falso (!condicao), sai do laço
-            vmWriter.writeArithmetic(Command.NOT);
-            vmWriter.writeIf(lEnd);
+        int labelNum = whileLabelNum++;
+        String lExp = "WHILE_EXP" + labelNum;
+        String lEnd = "WHILE_END" + labelNum;
 
-            consume(TokenType.LBRACE);
-            compileStatements();
-            consume(TokenType.RBRACE);
-            
-            // Retorna para reavaliar a expressão
-            vmWriter.writeGoto(lExp);
-            vmWriter.writeLabel(lEnd);
-            
-            xml.fechar("whileStatement");
-        }
+        vmWriter.writeLabel(lExp);
+
+        consume(TokenType.WHILE);
+        consume(TokenType.LPAREN);
+        compileExpression(); // Empilha o resultado da condição
+        consume(TokenType.RPAREN);
+
+        // Inverte a condição: se for falso (!condicao), sai do laço
+        vmWriter.writeArithmetic(Command.NOT);
+        vmWriter.writeIf(lEnd);
+
+        consume(TokenType.LBRACE);
+        compileStatements();
+        consume(TokenType.RBRACE);
+
+        // Retorna para reavaliar a expressão
+        vmWriter.writeGoto(lExp);
+        vmWriter.writeLabel(lEnd);
+
+        xml.fechar("whileStatement");
+    }
+
     // doStatement: 'do' subroutineCall ';'
     private void compileDo() {
-            xml.abrir("doStatement");
-            consume(TokenType.DO);
-            compileSubroutineCall();
-            consume(TokenType.SEMICOLON);
-            
-            // Remove o valor de retorno (0) do topo da pilha e descarta em TEMP 0
-            vmWriter.writePop(Segment.TEMP, 0);
-            
-            xml.fechar("doStatement");
-        }
+        xml.abrir("doStatement");
+        consume(TokenType.DO);
+        compileSubroutineCall();
+        consume(TokenType.SEMICOLON);
+
+        // Remove o valor de retorno (0) do topo da pilha e descarta em TEMP 0
+        vmWriter.writePop(Segment.TEMP, 0);
+
+        xml.fechar("doStatement");
+    }
 
     // returnStatement: 'return' expression? ';'
     private void compileReturn() {
-            xml.abrir("returnStatement");
-            consume(TokenType.RETURN);
-            
-            if (!match(TokenType.SEMICOLON)) {
-                // Retorna o resultado da expressão
-                compileExpression();
-            } else {
-                // Função void: força o retorno do valor 0
-                vmWriter.writePush(Segment.CONST, 0);
-            }
-            
-            consume(TokenType.SEMICOLON);
-            vmWriter.writeReturn(); // Escreve a instrução return na VM
-            xml.fechar("returnStatement");
+        xml.abrir("returnStatement");
+        consume(TokenType.RETURN);
+
+        if (!match(TokenType.SEMICOLON)) {
+            // Retorna o resultado da expressão
+            compileExpression();
+        } else {
+            // Função void: força o retorno do valor 0
+            vmWriter.writePush(Segment.CONST, 0);
         }
+
+        consume(TokenType.SEMICOLON);
+        vmWriter.writeReturn(); // Escreve a instrução return na VM
+        xml.fechar("returnStatement");
+    }
 
     // expression: term (op term)*
     // Jack nao define precedencia diferente para operadores binarios.
@@ -480,20 +478,17 @@ public class CompilationEngine {
                         || proximo.getType() == TokenType.DOT) {
                     compileSubroutineCall();
                 } else {
-                    String varName = consume(TokenType.IDENT).getLexeme();
-                    Symbol sym = symbolTable.resolve(varName);
+                    Symbol sym = resolverVariavel(consume(TokenType.IDENT));
                     if (match(TokenType.LBRACKET)) {
                         consume(TokenType.LBRACKET);
                         compileExpression();
-                        if (sym != null) {
-                            vmWriter.writePush(kind2Segment(sym.kind()), sym.index());
-                            vmWriter.writeArithmetic(Command.ADD);
-                        }
+                        pushVariavel(sym);
+                        vmWriter.writeArithmetic(Command.ADD);
                         consume(TokenType.RBRACKET);
                         vmWriter.writePop(Segment.POINTER, 1);
                         vmWriter.writePush(Segment.THAT, 0);
-                    } else if (sym != null) {
-                        vmWriter.writePush(kind2Segment(sym.kind()), sym.index());
+                    } else {
+                        pushVariavel(sym);
                     }
                 }
             }
@@ -514,6 +509,34 @@ public class CompilationEngine {
             default -> throw erro("Termo esperado");
         }
         xml.fechar("term");
+    }
+
+    // Busca a variavel na tabela de simbolos. Na geracao de VM, uma variavel
+    // nao declarada deixaria o codigo incompleto (push/pop faltando), entao o
+    // erro e reportado. Na analise sintatica pura (--parse) o VM e descartado
+    // e a verificacao nao se aplica.
+    private Symbol resolverVariavel(Token token) {
+        Symbol sym = symbolTable.resolve(token.getLexeme());
+        if (sym == null && gerandoVm) {
+            throw new IllegalArgumentException(
+                "Erro semantico na linha " + token.getLine()
+                + ", coluna " + token.getColumn()
+                + ": variavel nao declarada '" + token.getLexeme() + "'"
+            );
+        }
+        return sym;
+    }
+
+    private void pushVariavel(Symbol sym) {
+        if (sym != null) {
+            vmWriter.writePush(kind2Segment(sym.kind()), sym.index());
+        }
+    }
+
+    private void popVariavel(Symbol sym) {
+        if (sym != null) {
+            vmWriter.writePop(kind2Segment(sym.kind()), sym.index());
+        }
     }
 
     private Segment kind2Segment(Kind kind) {
@@ -541,65 +564,65 @@ public class CompilationEngine {
     // subroutineCall: subroutineName '(' expressionList ')'
     //               | (className | varName) '.' subroutineName '(' expressionList ')'
     private void compileSubroutineCall() {
-            // Guarda o primeiro nome (pode ser o nome da função, o nome do objeto, ou o nome da classe)
-            String firstName = consume(TokenType.IDENT).getLexeme();
-            String methodName = "";
-            int nArgs = 0;
-            boolean isMethod = false;
+        // Guarda o primeiro nome (pode ser o nome da função, o nome do objeto, ou o nome da classe)
+        String firstName = consume(TokenType.IDENT).getLexeme();
+        String methodName = "";
+        int nArgs = 0;
+        boolean isMethod = false;
 
-            if (match(TokenType.DOT)) {
-                consume(TokenType.DOT);
-                String secondName = consume(TokenType.IDENT).getLexeme();
-                
-                // Verifica se firstName é um objeto instanciado (está na SymbolTable)
-                Symbol sym = symbolTable.resolve(firstName);
-                if (sym != null) {
-                    // É chamada de método num objeto: ex: obj.metodo()
-                    isMethod = true;
-                    // Empurra o objeto (o this da sub-rotina chamada)
-                    vmWriter.writePush(kind2Segment(sym.kind()), sym.index());
-                    // O nome real da função é TipoDoObjeto.Metodo
-                    methodName = sym.type() + "." + secondName;
-                } else {
-                    // É chamada de função estática / construtor: ex: Math.multiply()
-                    methodName = firstName + "." + secondName;
-                }
-            } else {
-                // Chamada de método implícita na mesma classe: ex: metodo()
+        if (match(TokenType.DOT)) {
+            consume(TokenType.DOT);
+            String secondName = consume(TokenType.IDENT).getLexeme();
+
+            // Verifica se firstName é um objeto instanciado (está na SymbolTable)
+            Symbol sym = symbolTable.resolve(firstName);
+            if (sym != null) {
+                // É chamada de método num objeto: ex: obj.metodo()
                 isMethod = true;
-                // Empurra a instância atual ("this") para o método que vai ser chamado
-                vmWriter.writePush(Segment.POINTER, 0);
-                methodName = this.className + "." + firstName;
+                // Empurra o objeto (o this da sub-rotina chamada)
+                vmWriter.writePush(kind2Segment(sym.kind()), sym.index());
+                // O nome real da função é TipoDoObjeto.Metodo
+                methodName = sym.type() + "." + secondName;
+            } else {
+                // É chamada de função estática / construtor: ex: Math.multiply()
+                methodName = firstName + "." + secondName;
             }
-
-            consume(TokenType.LPAREN);
-            nArgs = compileExpressionList();
-            consume(TokenType.RPAREN);
-
-            // Se for um método (objeto empurrado antes dos argumentos), aumentamos nArgs em 1
-            if (isMethod) {
-                nArgs++;
-            }
-
-            vmWriter.writeCall(methodName, nArgs);
+        } else {
+            // Chamada de método implícita na mesma classe: ex: metodo()
+            isMethod = true;
+            // Empurra a instância atual ("this") para o método que vai ser chamado
+            vmWriter.writePush(Segment.POINTER, 0);
+            methodName = this.className + "." + firstName;
         }
+
+        consume(TokenType.LPAREN);
+        nArgs = compileExpressionList();
+        consume(TokenType.RPAREN);
+
+        // Se for um método (objeto empurrado antes dos argumentos), aumentamos nArgs em 1
+        if (isMethod) {
+            nArgs++;
+        }
+
+        vmWriter.writeCall(methodName, nArgs);
+    }
 
     // expressionList: (expression (',' expression)*)?
     private int compileExpressionList() {
-            xml.abrir("expressionList");
-            int nArgs = 0;
-            
-            if (!match(TokenType.RPAREN)) {
+        xml.abrir("expressionList");
+        int nArgs = 0;
+
+        if (!match(TokenType.RPAREN)) {
+            compileExpression();
+            nArgs++;
+
+            while (match(TokenType.COMMA)) {
+                consume(TokenType.COMMA);
                 compileExpression();
                 nArgs++;
-                
-                while (match(TokenType.COMMA)) {
-                    consume(TokenType.COMMA);
-                    compileExpression();
-                    nArgs++;
-                }
             }
-            xml.fechar("expressionList");
-            return nArgs;
         }
+        xml.fechar("expressionList");
+        return nArgs;
+    }
 }
