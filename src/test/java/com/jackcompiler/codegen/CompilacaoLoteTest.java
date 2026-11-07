@@ -37,13 +37,21 @@ public class CompilacaoLoteTest {
                   });
         }
 
-        // Chama o método executar() do Main
-        assertDoesNotThrow(() -> Main.main(new String[]{destinoTemp.toString()}));
+        // Chama o método executar() do Main (main() usa System.exit em caso de erro,
+        // o que encerraria a JVM dos testes em vez de reprovar o teste)
+        assertDoesNotThrow(() -> Main.executar(new String[]{destinoTemp.toString()}));
 
         // Verifica se todos os ficheiros .vm esperados foram criados na mesma pasta
+        // e se o conteúdo pertence à classe correspondente
         for (String classe : classesEsperadas) {
             Path vmGerado = destinoTemp.resolve(classe + ".vm");
             assertTrue(Files.exists(vmGerado), "O ficheiro " + classe + ".vm não foi gerado em lote.");
+
+            String vm = Files.readString(vmGerado);
+            assertTrue(vm.startsWith("function " + classe + "."),
+                    "O ficheiro " + classe + ".vm não começa com uma função da classe " + classe);
+            assertTrue(vm.contains("return"),
+                    "O ficheiro " + classe + ".vm não contém nenhum return");
         }
     }
 
