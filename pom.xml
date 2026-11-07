@@ -24,7 +24,7 @@
         </dependency>
     </dependencies>
 
-    <build>
+<build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -44,6 +44,20 @@
                 <version>3.5.1</version>
                 <configuration>
                     <mainClass>com.jackcompiler.Main</mainClass>
+                </configuration>
+            </plugin>
+
+            <!-- Plugin adicionado agora -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.jackcompiler.Main</mainClass>
+                        </manifest>
+                    </archive>
                 </configuration>
             </plugin>
         </plugins>
