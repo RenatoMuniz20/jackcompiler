@@ -454,6 +454,7 @@ O fim da Etapa 1 (`Seven` e `ConvertToBin` funcionando) está marcado no reposit
 - **Ferramentas e modelos:** Gemini (Google), modelo Gemini 3.1 Pro; e Claude (Anthropic), modelo Claude Opus 5.5, usado pelo Claude Code.
 - **Finalidade:** tirar dúvidas pontuais sobre a especificação da VM e revisar partes do código e do README.
 - **Validação:** todo o código foi implementado, integrado e revisado pela dupla, e validado com os testes automatizados e com a execução dos programas do Project 11 no VM Emulator.
+
 ---
 
 ## 👥 Créditos
