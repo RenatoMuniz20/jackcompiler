@@ -10,8 +10,14 @@ Desenvolvido em **Java**, o sistema lê arquivos de código-fonte `.jack` (um ar
 - **Exportação XML (`XmlTokenWriter` e `XmlParseWriter`):** Serializam, respectivamente, a sequência de tokens (`<tokens> ... </tokens>`) e a árvore sintática (`<class> ... </class>`), com escape dos caracteres reservados (`<`, `>`, `&`, `"`).
 - **Tabela de Símbolos (`SymbolTable`):** Mantém os dois escopos do Jack (classe e subrotina) e registra, para cada identificador, seu tipo, seu tipo de variável (`static`, `field`, `arg`, `var`) e seu índice.
 - **Geração de Código (`VMWriter`):** Emite os comandos da VM (`push`, `pop`, aritméticos, `label`, `goto`, `if-goto`, `call`, `function` e `return`), um por linha, conforme a especificação do capítulo 7 do livro.
-- **Compilação em Lote:** Ao receber uma pasta, o compilador processa todos os `.jack` dela (sem descer em subpastas) e gera um `.vm` por classe na mesma pasta.
-- **Validação e Testes:** Testes automatizados com JUnit 5 para o scanner, o parser, a tabela de símbolos e o gerador de código, incluindo a comparação automática da saída do parser com os gabaritos oficiais e a compilação em lote dos seis programas do Project 11.
+- **Compilação em Lote:** Ao receber uma pasta, o compilador processa todos os `.jack` dela (sem descer em subpastas) e gera um `.vm` por classe na mesma pasta (ou na pasta de saída informada).
+- **Validação e Testes:** Testes automatizados com JUnit 5 para o scanner, o parser, a tabela de símbolos e o gerador de código, incluindo a comparação automática das saídas léxica (`*T.xml`) e sintática (`*P.xml`) com os gabaritos oficiais do Project 10 e a compilação em lote dos seis programas do Project 11.
+
+---
+
+## 🎥 Vídeo de Apresentação e Demonstração
+
+**▶️ [Assista à demonstração completa no YouTube](https://youtu.be/Y61FsQNilkc?is=NGEUENCxy6b5urQx)**
 
 ---
 
@@ -63,7 +69,7 @@ jackcompiler/
 │       │               ├── ComandosExpressoesTest.java    🔹 Comandos, expressões e termos
 │       │               ├── ErrosSintaticosTest.java       🔹 Mensagens e posição dos erros sintáticos
 │       │               ├── CasosEspeciaisParserTest.java  🔹 Escape XML, expressões planas, arrays e else
-│       │               └── ValidacaoOficialTest.java      🔹 Comparação automática com os gabaritos oficiais
+│       │               └── ValidacaoOficialTest.java      🔹 Comparação automática com os gabaritos oficiais (*T.xml e *P.xml)
 │       │
 │       └── resources/
 │           ├── Exemplo.jack                               🔹 Exemplo simples para testes manuais
@@ -86,11 +92,12 @@ jackcompiler/
 ├── README.md
 └── .gitignore
 ```
+
 ---
 
 ## 🔍 Como o compilador funciona
 
-O código-fonte `.jack` passa pelo analisador léxico, que o transforma em um fluxo de tokens. O parser consome esse fluxo sob demanda e produz a árvore sintática:
+O código-fonte `.jack` passa pelo analisador léxico, que o transforma em um fluxo de tokens. O parser consome esse fluxo sob demanda e produz a árvore sintática e o código intermediário VM:
 
 ```
 Arquivo .jack
@@ -263,7 +270,7 @@ mvn clean package
 
 ### 🔹 Execução via linha de comando (CLI)
 
-O programa aceita **um arquivo `.jack` ou uma pasta**. Com uma pasta, todos os `.jack` dela são compilados (sem descer em subpastas) e é gerado um `.vm` por classe **na mesma pasta**, de onde o VM Emulator carrega o programa. Não é preciso copiar os `.vm` do sistema operacional: o VM Emulator já tem o SO embutido.
+O programa aceita **um arquivo `.jack` ou uma pasta**. Com uma pasta, todos os `.jack` dela são compilados (sem descer em subpastas) e é gerado um `.vm` por classe **na mesma pasta** (ou no diretório de saída informado), de onde o VM Emulator carrega o programa. Não é preciso copiar os `.vm` do sistema operacional: o VM Emulator já tem o SO embutido.
 
 Formato geral (argumentos passados ao `Main`): `Main [--vm | --tokens | --parse | --all] <arquivo.jack | diretorio> [saida]`. Sem flag, o modo padrão é `--vm`. Com um arquivo, `saida` é o caminho do arquivo gerado; com uma pasta, `saida` é a pasta onde os arquivos serão gravados.
 
@@ -278,40 +285,37 @@ Formato geral (argumentos passados ao `Main`): `Main [--vm | --tokens | --parse 
 
 Via JAR executável (após `mvn clean package`):
 ```bash
-java -jar target/jackcompiler-1.0-SNAPSHOT.jar src/test/resources/oficial/entrada/Pong
+java -jar target/jackcompiler-1.0-SNAPSHOT.jar src/test/resources/oficial/entrada/Pong target/Pong
 ```
-Ou via Maven:
+Ou via Maven (gerando na mesma pasta ou em um diretório de saída):
 ```bash
-mvn compile exec:java "-Dexec.args=src/test/resources/oficial/entrada/Pong"
+mvn compile exec:java "-Dexec.args=src/test/resources/oficial/entrada/Pong target/Pong"
 ```
-> Gera `Ball.vm`, `Bat.vm`, `Main.vm` e `PongGame.vm` dentro de `src/test/resources/oficial/entrada/Pong/`.
 
 #### Compilar um único arquivo
 ```bash
-java -jar target/jackcompiler-1.0-SNAPSHOT.jar src/test/resources/oficial/entrada/Seven/Main.jack
+java -jar target/jackcompiler-1.0-SNAPSHOT.jar src/test/resources/oficial/entrada/Seven/Main.jack target/Main.vm
 ```
-> Gera `Main.vm` ao lado do `Main.jack`.
 
 #### Executar no VM Emulator
 
 1. Abra o **VM Emulator** (pacote de ferramentas do Nand2Tetris).
-2. Use *File → Load Program* e selecione a **pasta** do programa (ex.: `Pong/`).
+2. Use *File → Load Program* e selecione a **pasta** contendo os `.vm` compilados (ex.: `Pong/`).
 3. Escolha *No animation* e clique em *Run*.
 
 #### Gerar o XML sintático de um arquivo
 ```bash
-mvn compile exec:java "-Dexec.args=--parse src/test/resources/oficial/entrada/Square/Square.jack"
+mvn compile exec:java "-Dexec.args=--parse src/test/resources/oficial/entrada/Square/Square.jack target/SquareP.xml"
 ```
-> **Nome do arquivo de saída XML do parser:** `<Nome>P.xml`, gerado no mesmo diretório do `.jack` (ex.: `SquareP.xml`). Com `--parse`, também é possível informar um caminho de saída personalizado como segundo argumento após o arquivo de entrada, por exemplo: `"-Dexec.args=--parse src/test/resources/oficial/entrada/Square/Square.jack target/SquareP.xml"`.
 
 #### Gerar apenas os tokens
 ```bash
-mvn compile exec:java "-Dexec.args=--tokens src/test/resources/Exemplo.jack"
+mvn compile exec:java "-Dexec.args=--tokens src/test/resources/Exemplo.jack target/ExemploT.xml"
 ```
 
 #### Gerar os dois XMLs e o código VM de uma vez
 ```bash
-mvn compile exec:java "-Dexec.args=--all src/test/resources/Exemplo.jack"
+mvn compile exec:java "-Dexec.args=--all src/test/resources/Exemplo.jack target/Exemplo"
 ```
 
 Em caso de erro léxico, sintático ou semântico (variável não declarada), a mensagem é exibida em `stderr` e o programa termina com código 1.
@@ -335,11 +339,11 @@ Os testes cobrem:
 | `ComandosExpressoesTest` | 7 testes: `let`, `if`, `while`, `do`, `return`, expressões e termos. |
 | `ErrosSintaticosTest` | 9 testes: identificação de tokens inesperados, erros em expressões e declarações, EOF, comentários, CRLF e posição (linha e coluna), inclusive após caracteres UTF-8. |
 | `CasosEspeciaisParserTest` | 10 testes: blocos aninhados, listas de argumentos, arrays, operadores, constantes, comentários, XML bem formado e rejeição de sintaxes inválidas. |
-| `ValidacaoOficialTest` | 14 testes dinâmicos: compara os 7 arquivos de `Square`, `ExpressionLessSquare` e `ArrayTest` com os gabaritos oficiais `*T.xml` e `*P.xml`. |
+| `ValidacaoOficialTest` | 14 testes dinâmicos: compara os 7 arquivos de `Square`, `ExpressionLessSquare` e `ArrayTest` com os gabaritos oficiais `*T.xml` (léxico) e `*P.xml` (sintático). |
 | `SymbolTableTest` | 3 testes: definição e resolução de variáveis nos dois escopos, reinício do escopo de subrotina e rejeição de variável duplicada. |
 | `VMWriterTest` | 3 testes: emissão isolada dos comandos `push`, `pop`, aritméticos, rótulos, `call`, `function` e `return`. |
 | `GeneratorCodeTest` | 6 testes: código VM de expressões, `let`, `if`/`else`, `while`, strings e arrays, e erro para variável não declarada. |
-| `CompilacaoLoteTest` | 6 testes: compila as pastas `Seven`, `ConvertToBin`, `Square`, `Average`, `Pong` e `ComplexArrays` e confere se cada classe gerou seu `.vm` na mesma pasta. |
+| `CompilacaoLoteTest` | 6 testes: compila as pastas `Seven`, `ConvertToBin`, `Square`, `Average`, `Pong` e `ComplexArrays` em diretórios temporários (`@TempDir`) e confere se cada classe gerou seu `.vm`. |
 
 **Total:** 84 casos de teste (70 testes JUnit convencionais e 14 testes dinâmicos de validação oficial). Para executar toda a suíte a partir de uma compilação limpa, use `mvn clean test`.
 
@@ -349,40 +353,42 @@ Os testes cobrem:
 
 ### Project 10 — Léxico
 
+A comparação é automática, feita por `ValidacaoOficialTest` (`xmlLexicoEquivaleAoOficial`) diretamente em memória, sem gravar arquivos na pasta de recursos de teste.
+
 | Arquivo de Entrada | Gabarito Esperado | Validação |
 |---|---|---|
-| `Main.jack` | `MainT.xml` | ✅ Passou |
-| `Square.jack` | `SquareT.xml` | ✅ Passou |
-| `SquareGame.jack` | `SquareGameT.xml` | ✅ Passou |
+| `Square/Main.jack` | `MainT.xml` | ✅ Passou |
+| `Square/Square.jack` | `SquareT.xml` | ✅ Passou |
+| `Square/SquareGame.jack` | `SquareGameT.xml` | ✅ Passou |
 | `ExpressionLessSquare/*.jack` | `MainT.xml`, `SquareT.xml`, `SquareGameT.xml` | ✅ Passou |
 | `ArrayTest/Main.jack` | `MainT.xml` | ✅ Passou |
 
 ### Project 10 — Sintático
 
-A comparação é automática, feita por `ValidacaoOficialTest`. Antes de comparar, o teste remove espaços nas pontas de cada linha e linhas em branco, o que elimina diferenças de indentação e de `LF`/`CRLF`. A ordem, a hierarquia de tags e os tokens são comparados integralmente. Os gabaritos sintáticos de referência estão na pasta `referencia`; as saídas `*P.xml` são geradas em `entrada` quando o programa é executado com `--parse` sem um caminho de saída alternativo.
+A comparação também é automática, feita por `ValidacaoOficialTest` (`xmlSintaticoEquivaleAoOficial`) em memória. Antes de comparar, o teste remove espaços nas pontas de cada linha e linhas em branco, o que elimina diferenças de indentação e de `LF`/`CRLF`. A ordem, a hierarquia de tags e os tokens são comparados integralmente contra os gabaritos oficiais da pasta `referencia`.
 
 | Arquivo de Entrada | Gabarito Esperado | Validação |
 |---|---|---|
-| `Main.jack` | `MainP.xml` | ✅ Passou |
-| `Square.jack` | `SquareP.xml` | ✅ Passou |
-| `SquareGame.jack` | `SquareGameP.xml` | ✅ Passou |
+| `Square/Main.jack` | `MainP.xml` | ✅ Passou |
+| `Square/Square.jack` | `SquareP.xml` | ✅ Passou |
+| `Square/SquareGame.jack` | `SquareGameP.xml` | ✅ Passou |
 | `ExpressionLessSquare/*.jack` | `MainP.xml`, `SquareP.xml`, `SquareGameP.xml` | ✅ Passou |
 | `ArrayTest/Main.jack` | `MainP.xml` | ✅ Passou |
 
-Para reproduzir a validação manualmente, gere as saídas com os arquivos de `src/test/resources/oficial/entrada/Square/`:
+Para reproduzir a validação manualmente na pasta `target/` (mantendo `src/test/resources/` intacta), gere as saídas informando o arquivo de destino:
 
 ```powershell
 foreach ($nome in @("Main", "Square", "SquareGame")) {
-    mvn compile exec:java "-Dexec.args=--parse src/test/resources/oficial/entrada/Square/$nome.jack"
+    mvn compile exec:java "-Dexec.args=--parse src/test/resources/oficial/entrada/Square/$nome.jack target/${nome}P.xml"
 }
 ```
 
-Depois compare os resultados com os arquivos em `src/test/resources/oficial/referencia/Square/`:
+Depois compare os resultados gerados em `target/` com os arquivos em `src/test/resources/oficial/referencia/Square/`:
 
 ```powershell
 $base = "src/test/resources/oficial"
 foreach ($nome in @("Main", "Square", "SquareGame")) {
-    $gerado = (Get-Content "$base/entrada/Square/${nome}P.xml" |
+    $gerado = (Get-Content "target/${nome}P.xml" |
         ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }) -join "`n"
     $referencia = (Get-Content "$base/referencia/Square/${nome}P.xml" |
         ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }) -join "`n"
@@ -392,11 +398,9 @@ foreach ($nome in @("Main", "Square", "SquareGame")) {
 }
 ```
 
-O arquivo `Exemplo.jack` foi utilizado adicionalmente como teste manual local, gerando `ExemploT.xml`; ele não faz parte dos gabaritos oficiais.
-
 ### Project 11 — Geração de código VM
 
-Não há arquivos `.cmp` no Project 11: a validação é feita compilando a pasta de cada programa e executando o resultado no **VM Emulator**. O código gerado não precisa ser idêntico ao do compilador oficial (os nomes dos rótulos, por exemplo, são diferentes); o que importa é o programa funcionar.
+Não há arquivos `.cmp` no Project 11: a validação é feita compilando a pasta de cada programa e executando o resultado no **VM Emulator**. O código gerado não precisa ser idêntico ao do compilador oficial (os nomes dos rótulos, por exemplo, são diferentes); o que importa é o programa funcionar corretamente na máquina virtual.
 
 | Etapa | Programa | Arquivos | Como conferir | Validação |
 |---|---|---|---|---|
@@ -429,7 +433,7 @@ O fim da Etapa 1 (`Seven` e `ConvertToBin` funcionando) está marcado no reposit
 - **Chamadas de método x funções:** em `a.f()`, o compilador precisa saber se `a` é uma variável (chamada de método, com o objeto empilhado e o tipo de `a` como nome da classe) ou o nome de uma classe (função ou construtor). A tabela de símbolos resolve essa dúvida.
 - **Ordem em `let a[i] = expr`:** se `expr` também acessa arrays, ela altera `pointer 1`. Por isso o valor é guardado em `temp 0` e o endereço só é ancorado em `pointer 1` depois que a expressão termina. O `ComplexArrays` foi o programa que mais exigiu atenção nesse ponto.
 - **Rótulos únicos:** `if` e `while` aninhados precisam de rótulos diferentes; usamos contadores separados para cada comando.
-- **Compilação de pastas:** o VM Emulator carrega o programa a partir da pasta, então os `.vm` precisam ser gerados ao lado dos `.jack`, um por classe.
+- **Compilação de pastas:** o VM Emulator carrega o programa a partir da pasta, então os `.vm` precisam ser gerados ao lado dos `.jack`, um por classe. Nos testes automatizados (`CompilacaoLoteTest`), usamos `@TempDir` para validar a compilação em lote sem criar arquivos `.vm` dentro de `src/test/resources/`.
 - **Variáveis não declaradas:** inicialmente, um identificador inexistente era ignorado e gerava um `.vm` incompleto sem nenhum aviso. Passamos a reportar o erro com linha e coluna.
 - **Aprendizados:** entendemos na prática como construções de alto nível (objetos, métodos, arrays e strings) são reduzidas a uma pilha e a poucos segmentos de memória, e como o compilador depende da tabela de símbolos para decidir o código de cada identificador.
 
@@ -450,13 +454,6 @@ O fim da Etapa 1 (`Seven` e `ConvertToBin` funcionando) está marcado no reposit
 - **Ferramentas e modelos:** Gemini (Google), modelo Gemini 3.1 Pro; e Claude (Anthropic), modelo Claude Opus 5.5, usado pelo Claude Code.
 - **Finalidade:** tirar dúvidas pontuais sobre a especificação da VM e revisar partes do código e do README.
 - **Validação:** todo o código foi implementado, integrado e revisado pela dupla, e validado com os testes automatizados e com a execução dos programas do Project 11 no VM Emulator.
-
----
-
-## 🎥 Vídeo de demonstração
-
-🔗 **Link:** *(adicionar o link do vídeo)*
-
 ---
 
 ## 👥 Créditos
@@ -466,11 +463,11 @@ O fim da Etapa 1 (`Seven` e `ConvertToBin` funcionando) está marcado no reposit
 - **José Nunes de Sousa Neto** — Matrícula: **20250071231**
 - **Renato Muniz Gomes** — Matrícula: **20250071330**
 
-**Disciplina:** EECP0026 — Compiladores  
+**Disciplina:** EECP0026 — Compiladores
 
-**Professor:** Prof. Dr. Sergio Souza Costa  
+**Professor:** Prof. Dr. Sergio Souza Costa
 
-**Instituição:** UFMA — Universidade Federal do Maranhão  
+**Instituição:** UFMA — Universidade Federal do Maranhão
 
 **Semestre:** 2026.2
 
@@ -481,5 +478,3 @@ O fim da Etapa 1 (`Seven` e `ConvertToBin` funcionando) está marcado no reposit
 **Este repositório possui fins acadêmicos.**
 
 </div>
-
----
