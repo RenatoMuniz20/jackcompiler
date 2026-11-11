@@ -15,6 +15,12 @@ Desenvolvido em **Java**, o sistema lê arquivos de código-fonte `.jack` (um ar
 
 ---
 
+## 🎥 Vídeo de apresentação
+
+**▶️ [Assista aqui](https://youtu.be/Y61FsQNilkc?is=NGEUENCxy6b5urQx)**
+
+---
+
 ## 📁 Estrutura do Projeto
 
 ```
