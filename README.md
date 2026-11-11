@@ -15,12 +15,6 @@ Desenvolvido em **Java**, o sistema lê arquivos de código-fonte `.jack` (um ar
 
 ---
 
-## 🎥 Vídeo de apresentação
-
-**▶️ [Assista aqui](https://youtu.be/Y61FsQNilkc?is=NGEUENCxy6b5urQx)**
-
----
-
 ## 📁 Estrutura do Projeto
 
 ```
@@ -461,7 +455,7 @@ O fim da Etapa 1 (`Seven` e `ConvertToBin` funcionando) está marcado no reposit
 
 ## 🎥 Vídeo de demonstração
 
-🔗 **Link:** *(adicionar o link do vídeo)*
+🔗 **Link:** *(https://youtu.be/Y61FsQNilkc?is=NGEUENCxy6b5urQx)*
 
 ---
 
