@@ -130,17 +130,4 @@ public class Main {
             System.out.println("Codigo VM gerado: " + saida.toAbsolutePath());
         }
     }
-
-    private static Path resolverSaidaPadrao(Path referencia, String nomeArquivoSaida)
-            throws IOException {
-        String caminhoNormalizado = referencia.toString().replace('\\', '/');
-        if (caminhoNormalizado.contains("src/test/resources")) {
-            Path parent = referencia.getParent();
-            String subpasta = parent != null ? parent.getFileName().toString() : "default";
-            Path dirSaida = Path.of("target", "generated-output", subpasta);
-            Files.createDirectories(dirSaida);
-            return dirSaida.resolve(nomeArquivoSaida);
-        }
-        return referencia.resolveSibling(nomeArquivoSaida);
-    }
 }
